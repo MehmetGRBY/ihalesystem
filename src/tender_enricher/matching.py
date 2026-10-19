@@ -1,5 +1,6 @@
 from difflib import SequenceMatcher
 
+from tender_enricher.addressing import address_supports_identity
 from tender_enricher.models import CompanyProfile, MatchDecision
 from tender_enricher.normalization import company_key, domain, text_key
 
@@ -39,7 +40,7 @@ def match_company(anchor: CompanyProfile, candidate: CompanyProfile) -> MatchDec
             return MatchDecision(accepted=False, score=0, reasons=["domain_conflict"])
         strong.append("domain_match")
     if anchor.address and candidate.address:
-        if text_key(anchor.address) == text_key(candidate.address):
+        if address_supports_identity(anchor.address, candidate.address):
             strong.append("address_match")
     if not strong:
         reasons = ["name_only_insufficient"]

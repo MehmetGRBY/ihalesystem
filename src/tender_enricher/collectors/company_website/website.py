@@ -1,4 +1,5 @@
-from urllib.parse import urlsplit
+from collections import Counter, deque
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -13,7 +14,9 @@ from tender_enricher.collectors.parsing import (
 from tender_enricher.collectors.search.multi import search_issues
 from tender_enricher.config import Settings
 from tender_enricher.enrichment import provider_failure
+from tender_enricher.errors import CollectionError
 from tender_enricher.evidence import make_source, publisher_group
+from tender_enricher.matching import match_company
 from tender_enricher.models import (
     Collection,
     CompanyCandidate,
@@ -23,7 +26,53 @@ from tender_enricher.models import (
     Source,
     SourceType,
 )
+from tender_enricher.normalization import domain, text_key
 from tender_enricher.ports import SearchProvider
+
+
+def identity_links(body: str, base: str) -> list[str]:
+    """Only observed same-host identity links, never generated URLs or external policies."""
+    soup = BeautifulSoup(body, "lxml")
+    for node in soup.select(
+        "form, script, style, [hidden], [aria-hidden='true'], "
+        "[style*='display:none'], [style*='display: none']"
+    ):
+        node.decompose()
+    links: dict[str, int] = {}
+    for link in soup.select("a[href]"):
+        try:
+            parsed = urlsplit(urljoin(base, str(link["href"])))
+            if (
+                parsed.scheme not in {"http", "https"}
+                or parsed.username
+                or parsed.password
+                or parsed.port not in {None, 80, 443}
+                or domain(urlunsplit(parsed)) != domain(base)
+            ):
+                continue
+            caption = link.get_text(" ", strip=True)
+            if len(caption) > 80 or len(caption.split()) > 8:
+                caption = ""  # Malformed menu/logo links can accidentally enclose the page.
+            label = text_key(parsed.path + " " + caption)
+            priority = next(
+                (
+                    i
+                    for i, markers in enumerate(
+                        (
+                            ("kvkk", "kunye", "imprint", "privacy", "gizlilik"),
+                            ("hakkimizda", "kurumsal", "about"),
+                        )
+                    )
+                    if any(marker in label.split() for marker in markers)
+                ),
+                None,
+            )
+            if priority is not None:
+                url = urlunsplit(parsed._replace(fragment=""))
+                links[url] = min(priority, links.get(url, priority))
+        except ValueError:
+            continue
+    return sorted(links, key=lambda url: links[url])[:2]
 
 
 def parse_companies(body: str, source: Source) -> list[CompanyCandidate]:
@@ -72,9 +121,27 @@ class CompanyWebsiteCollector:
             except Exception as error:
                 result.issues.append(provider_failure("search", "enrichment", error))
             result.issues.extend(search_issues(self.search, "enrichment"))
-        for url in list(dict.fromkeys(urls))[: self.settings.max_pages_per_tender]:
+        pending = deque(dict.fromkeys(urls))
+        visited: set[str] = set()
+        followed: Counter[str] = Counter()
+        identity_hosts: dict[str, str] = {}
+        while pending and len(visited) < self.settings.max_pages_per_tender:
+            url = pending.popleft()
+            if url in visited:
+                continue
+            visited.add(url)
             try:
                 document = self.fetcher.fetch(url)
+                if url in identity_hosts and domain(document.final_url) != identity_hosts[url]:
+                    result.issues.append(
+                        Issue(
+                            stage="enrichment",
+                            code="identity_redirect_offsite",
+                            provider=self.name,
+                            message="Company identity link redirected to another host; skipped.",
+                        )
+                    )
+                    continue
                 # A directory mentioning a corporate URL is not that company's site.
                 source = make_source(
                     url,
@@ -99,6 +166,18 @@ class CompanyWebsiteCollector:
                     source.source_type = SourceType.COMPANY_WEBSITE
                 result.sources.append(source)
                 result.candidates.extend(candidates)
+                if source.source_type == SourceType.COMPANY_WEBSITE and not any(
+                    match_company(winner, item.company).accepted for item in candidates
+                ):
+                    host = domain(document.final_url)
+                    extra = [
+                        link
+                        for link in identity_links(document.body, document.final_url)
+                        if link not in visited and link not in pending
+                    ][: max(0, 2 - followed[host])]
+                    followed[host] += len(extra)
+                    identity_hosts.update((link, host) for link in extra)
+                    pending.extendleft(reversed(extra))
                 if not candidates:
                     result.issues.append(
                         Issue(
@@ -110,4 +189,6 @@ class CompanyWebsiteCollector:
                     )
             except Exception as error:
                 result.issues.append(provider_failure(self.name, "enrichment", error))
+                if isinstance(error, CollectionError) and error.code == "page_budget_exceeded":
+                    break
         return result

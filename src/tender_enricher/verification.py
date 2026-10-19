@@ -1,6 +1,7 @@
 from collections import defaultdict
 from collections.abc import Sequence
 
+from tender_enricher.addressing import same_address
 from tender_enricher.models import (
     CompanyField,
     CompanyProfile,
@@ -50,7 +51,14 @@ def verify_fields(
         claims = [item for item in evidence if item.field == field and item.source_id in source_map]
         groups: dict[str, list[Evidence]] = defaultdict(list)
         for claim in claims:
-            groups[normalize_value(field, claim.value)].append(claim)
+            key = normalize_value(field, claim.value)
+            if field == CompanyField.ADDRESS:
+                key = f"address:{len(groups)}"
+                for existing, observations in groups.items():
+                    if all(same_address(claim.value, item.value) for item in observations):
+                        key = existing
+                        break
+            groups[key].append(claim)
         if not claims:
             profile[field] = None
             verifications[field] = FieldVerification(status="missing", confidence=0)

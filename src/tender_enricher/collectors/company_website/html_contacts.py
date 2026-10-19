@@ -141,14 +141,23 @@ def public_contacts(soup: BeautifulSoup, source: Source) -> list[CompanyCandidat
     legal = re.compile(
         r"\b(?:anonim\s+şirketi|limited\s+şirketi|a\s*\.\s*ş\s*\.|ltd\.?\s*şti\.?)", re.I
     )
-    for index, paragraph in enumerate(soup.select("p, h1, h2, h3, address")):
+    for index, paragraph in enumerate(soup.select("p, h1, h2, h3, address, b, strong")):
         text = paragraph.get_text(" ", strip=True)
-        if len(text) > 350 or not text_key(text).startswith(brand_tokens[0]):
+        owner_statement = (
+            paragraph.name in {"b", "strong"}
+            and any(
+                marker in text_key(paragraph.parent.get_text(" ", strip=True))
+                for marker in ("veri sorumlusu olarak", "data controller", "ticaret unvani")
+            )
+            if paragraph.parent
+            else False
+        )
+        if len(text) > 350 or not (text_key(text).startswith(brand_tokens[0]) or owner_statement):
             continue
         match = legal.search(text)
         if match:
             name = text[: match.end()]
-            legal_names[company_key(name)] = (name, f"p,h1,h2,h3,address[{index + 1}]")
+            legal_names[company_key(name)] = (name, f"company-identity[{index + 1}]")
     if len(legal_names) > 1:
         return []
     if legal_names:

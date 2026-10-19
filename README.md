@@ -85,6 +85,10 @@ Firma sitelerinde Organization JSON-LD, microdata, hCard ve açık şirket kimli
 
 Bir sayfanın okunabilmesi şirketin ihale yüklenicisi olduğunu tek başına kanıtlamaz. Unvan ile ek kimlik/adres/site eşleşmesi kontrolleri korunur. Çelişkili telefonlar ayrı kanıt olarak kalır. Her site tasarımı desteklenmez; tanınmayan veya eşleşmeyen bilgiler kaynak notuyla belirtilir.
 
+İletişim sayfası yalnızca marka adı içeriyorsa, aynı sunucudaki gözlenen KVKK/künye/Hakkımızda bağlantılarından en fazla ikisi mevcut sayfa bütçesi içinde kontrol edilir. Görünür veri sorumlusu beyanındaki tam ticari unvan kaynak konumuyla okunur. Başka sunucuya yönlenen kimlik bağlantıları kullanılmaz; robots ve erişim kontrolleri her sayfada geçerlidir. Kısa marka sayfasındaki iletişim bilgileri tam unvan bulunan başka sayfaya taşınmaz.
+
+Adreslerde Sk./Sokak ve Cad./Caddesi gibi yazımlar, açık sokak adı, kapı numarası, ilçe ve il birlikte uyuşuyorsa karşılaştırılır. Farklı daire, kat, blok veya yayımlanmış mahalle bilgisi çelişkili kalır. Eksik mahalle alanı, iki farklı mahalleyi aynı adres yapmaz. Kaynak adres metinleri değiştirilmez; en güçlü kaynaktaki gösterim korunur. Aynı şirketin farklı sayfaları bağımsız ikinci iletişim kaynağı sayılmaz. Eski kayıtta bu adımı uygulamak için **Araştırmayı yenile** kullanılabilir.
+
 EKAP yapım/hizmet sonuçlarında kullanılan `Yüklenici` ve `Yüklenicisi` alanları desteklenir. Eski bir sürümle işlenmiş arşivde bu alanlar eksikse yerel bültenlerin yeniden işlenmesi gerekir; PDF’leri tekrar indirmek gerekmez.
 
 ## İçe aktarma ve komutlar
