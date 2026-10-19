@@ -1,0 +1,13 @@
+data/
+__pycache__/
+inspection/
+tmp*/
+*.zip
+.venv/
+.env
+.env.*
+*.log
+*.sqlite3
+*.sqlite3-*
+playwright-report/
+test-results/

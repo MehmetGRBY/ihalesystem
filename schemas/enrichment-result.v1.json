@@ -1,0 +1,464 @@
+{
+  "$defs": {
+    "CompanyField": {
+      "enum": [
+        "company_name",
+        "phone",
+        "email",
+        "website",
+        "address",
+        "city",
+        "district",
+        "mersis_no",
+        "trade_registry_no",
+        "trade_registry_office",
+        "tax_no",
+        "tax_office",
+        "winner.company_name"
+      ],
+      "title": "CompanyField",
+      "type": "string"
+    },
+    "CompanyProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "company_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Company Name"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        },
+        "website": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Website"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "City"
+        },
+        "district": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "District"
+        },
+        "mersis_no": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{16}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mersis No"
+        },
+        "trade_registry_no": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trade Registry No"
+        },
+        "trade_registry_office": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trade Registry Office"
+        },
+        "tax_no": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{10}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tax No"
+        },
+        "tax_office": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tax Office"
+        }
+      },
+      "title": "CompanyProfile",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "field": {
+          "$ref": "#/$defs/CompanyField"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "excerpt": {
+          "maxLength": 600,
+          "title": "Excerpt",
+          "type": "string"
+        },
+        "locator": {
+          "title": "Locator",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "value",
+        "source_id",
+        "excerpt",
+        "locator"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "FieldVerification": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "missing",
+            "single_source",
+            "verified",
+            "conflicting"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "alternatives": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "confidence"
+      ],
+      "title": "FieldVerification",
+      "type": "object"
+    },
+    "Issue": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        }
+      },
+      "required": [
+        "stage",
+        "code",
+        "message"
+      ],
+      "title": "Issue",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        },
+        "final_url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "Final Url",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "publisher_group": {
+          "title": "Publisher Group",
+          "type": "string"
+        },
+        "retrieved_at": {
+          "format": "date-time",
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "content_sha256": {
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "is_demo": {
+          "default": false,
+          "title": "Is Demo",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "final_url",
+        "source_type",
+        "publisher_group",
+        "retrieved_at",
+        "content_sha256"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "official_award",
+        "company_website",
+        "public_registry",
+        "news"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "tender_id": {
+      "title": "Tender Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "resolved",
+        "partial",
+        "review_required",
+        "unresolved",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "winner": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CompanyProfile"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "field_verification": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FieldVerification"
+      },
+      "title": "Field Verification",
+      "type": "object"
+    },
+    "winner_confidence": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Winner Confidence",
+      "type": "number"
+    },
+    "confidence": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "completeness": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Completeness",
+      "type": "number"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/Issue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "processed_at": {
+      "format": "date-time",
+      "title": "Processed At",
+      "type": "string"
+    },
+    "is_demo": {
+      "default": false,
+      "title": "Is Demo",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tender_id",
+    "status"
+  ],
+  "title": "EnrichmentResult",
+  "type": "object"
+}

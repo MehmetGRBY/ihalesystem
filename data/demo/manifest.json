@@ -1,0 +1,5 @@
+{
+  "https://awards.demo.test/2026-123456": "pages/award.html",
+  "https://abc.demo.test/": "pages/company.html",
+  "https://registry.demo.test/abc": "pages/registry.html"
+}

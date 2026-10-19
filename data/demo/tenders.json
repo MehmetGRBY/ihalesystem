@@ -1,0 +1,17 @@
+[
+  {
+    "tender_id": "2026/123456",
+    "title": "SENTETİK DEMO — 150 Yataklı Devlet Hastanesi Yapım İşi",
+    "authority": "Demo Kurumu (gerçek ihale değildir)",
+    "location": "Van",
+    "award_urls": ["https://awards.demo.test/2026-123456"],
+    "company_urls": ["https://abc.demo.test/"],
+    "registry_urls": ["https://registry.demo.test/abc"]
+  },
+  {
+    "tender_id": "2026/654321",
+    "title": "SENTETİK DEMO — Kaynağı olmayan kayıt",
+    "authority": "Demo Kurumu",
+    "location": "Ankara"
+  }
+]

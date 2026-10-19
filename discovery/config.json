@@ -1,0 +1,25 @@
+{
+  "interval_minutes": 360,
+  "archive_interval_minutes": 1,
+  "sources": [
+    {"key": "toki_ilan", "name": "TOKİ - Yaklaşan ihaleler", "url": "https://www.toki.gov.tr/ihale-tarihleri", "adapter": "toki", "stage": "ilan"},
+    {"key": "toki_degerlendirme", "name": "TOKİ - Değerlendirme aşaması", "url": "https://www.toki.gov.tr/degerlendirme-asamasindaki-ihaleler", "adapter": "toki", "stage": "degerlendirme"},
+    {"key": "ankara", "name": "Ankara Büyükşehir Belediyesi", "url": "https://www.ankara.bel.tr/ihaleler", "adapter": "ankara", "stage": "ilan", "max_pages": 3},
+    {"key": "izmir", "name": "İzmir Büyükşehir Belediyesi", "url": "https://eislem.izmir.bel.tr/tr/IhaleIlanlari", "adapter": "izmir", "stage": "ilan"},
+    {"key": "medipol", "name": "İstanbul Medipol Üniversitesi", "url": "https://www.medipol.edu.tr/universite/ihaleler", "adapter": "medipol", "stage": "ilan", "max_pages": 3, "detail_dates": true},
+    {"key": "ankara_medipol", "name": "Ankara Medipol Üniversitesi", "url": "https://www.ankaramedipol.edu.tr/ihaleler", "adapter": "medipol", "stage": "ilan", "max_pages": 3, "detail_dates": true},
+    {"key": "etu", "name": "TOBB Ekonomi ve Teknoloji Üniversitesi", "url": "https://www.etu.edu.tr/tr/kurumsal/ihaleler", "adapter": "etu", "stage": "ilan", "detail_dates": true},
+    {"key": "istinye", "name": "İstinye Üniversitesi", "url": "https://www.istinye.edu.tr/tr/ihaleler", "adapter": "istinye", "stage": "ilan", "max_pages": 2},
+    {"key": "ipkb", "name": "İstanbul Proje Koordinasyon Birimi", "url": "https://www.ipkb.gov.tr/ihale/", "adapter": "ipkb", "stage": "ilan", "max_pages": 3},
+    {"key": "tki", "name": "Türkiye Kömür İşletmeleri", "url": "https://www.tki.gov.tr/ihaleler", "adapter": "tki", "stage": "ilan"},
+    {"key": "ekap", "name": "EKAP - İlanlar ve Yüklenici Sonuçları", "url": "https://ekap.kik.gov.tr/EKAP/Ilan/BultenIndirme.aspx", "adapter": "ekap_bulletin", "enabled": true, "bulletin_days": 1, "recheck_days": 3, "archive_days": 90, "backfill_batch_days": 30},
+    {"key": "emlak_projects", "name": "Emlak Konut - Devam Eden Projeler", "url": "https://sales.emlakkonut.com.tr/?locale=tr", "adapter": "emlak_projects"},
+    {"key": "csb_istanbul", "name": "İstanbul - Resmî ÇED/Yatırım Duyuruları", "url": "https://istanbul.csb.gov.tr/duyurular", "adapter": "csb_projects", "city": "İstanbul", "max_pages": 2, "max_details": 20},
+    {"key": "csb_ankara", "name": "Ankara - Resmî ÇED/Yatırım Duyuruları", "url": "https://ankara.csb.gov.tr/duyurular", "adapter": "csb_projects", "city": "Ankara", "max_pages": 2, "max_details": 20},
+    {"key": "csb_izmir", "name": "İzmir - Resmî ÇED/Yatırım Duyuruları", "url": "https://izmir.csb.gov.tr/duyurular", "adapter": "csb_projects", "city": "İzmir", "max_pages": 2, "max_details": 20},
+    {"key": "csb_antalya", "name": "Antalya - Resmî ÇED/Yatırım Duyuruları", "url": "https://antalya.csb.gov.tr/duyurular", "adapter": "csb_projects", "city": "Antalya", "max_pages": 2, "max_details": 20},
+    {"key": "csb_bursa", "name": "Bursa - Resmî ÇED/Yatırım Duyuruları", "url": "https://bursa.csb.gov.tr/duyurular", "adapter": "csb_projects", "city": "Bursa", "max_pages": 2, "max_details": 20},
+    {"key": "ilan", "name": "ilan.gov.tr", "url": "https://www.ilan.gov.tr/ilan/tum-ilanlar/ihale?ats=3", "enabled": false, "reason": "Açık arama servisi bu ortamda HTTP 403 döndürüyor. Manuel kontrol bağlantısı."},
+    {"key": "ibb", "name": "İstanbul Büyükşehir Belediyesi", "url": "https://ibb.istanbul/ibb/ihaleler/ihale-ilanlari/", "enabled": false, "reason": "HTML yanıtında ihale listesi yok; dinamik veri bağlantısı henüz doğrulanmadı. Manuel kontrol bağlantısı."}
+  ]
+}
