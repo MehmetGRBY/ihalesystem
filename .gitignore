@@ -21,3 +21,6 @@ data/inbox/*
 build/
 dist/
 .DS_Store
+data/runtime/
+data/ihalesystem.json
+*.log

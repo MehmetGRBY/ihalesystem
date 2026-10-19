@@ -6,18 +6,20 @@ from tender_enricher.models import EnrichmentResult, NormalizedTender
 
 
 class SqlAlchemyResultRepository:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, identity_key: str | None = None) -> None:
         self.engine = engine
+        self.identity_key = identity_key
 
     def save(self, tender: NormalizedTender, result: EnrichmentResult) -> None:
         # One transaction includes tender, run, verified profile and raw observations.
         # A duplicate run_id is idempotent; a new run preserves the previous result.
         with Session(self.engine) as session, session.begin():
+            storage_key = self.identity_key or tender.tender_id
             if session.get(RunRow, result.run_id):
                 return
-            row = session.get(TenderRow, tender.tender_id)
+            row = session.get(TenderRow, storage_key)
             if row is None:
-                row = TenderRow(tender_id=tender.tender_id, payload=tender.model_dump(mode="json"))
+                row = TenderRow(tender_id=storage_key, payload=tender.model_dump(mode="json"))
                 session.add(row)
             else:
                 row.payload = tender.model_dump(mode="json")
@@ -25,7 +27,7 @@ class SqlAlchemyResultRepository:
             session.add(
                 RunRow(
                     run_id=result.run_id,
-                    tender_id=tender.tender_id,
+                    tender_id=storage_key,
                     status=result.status,
                     confidence=result.confidence,
                     processed_at=result.processed_at,
