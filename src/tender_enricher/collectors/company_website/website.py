@@ -2,6 +2,7 @@ from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
+from tender_enricher.collectors.company_website.html_contacts import public_contacts
 from tender_enricher.collectors.contracts import PageFetcher
 from tender_enricher.collectors.parsing import (
     labeled_values,
@@ -26,6 +27,11 @@ from tender_enricher.ports import SearchProvider
 
 def parse_companies(body: str, source: Source) -> list[CompanyCandidate]:
     soup = BeautifulSoup(body, "lxml")
+    for hidden_node in soup.select(
+        "script:not([type='application/ld+json']), style, form, nav, [hidden], "
+        "[aria-hidden='true'], [style*='display:none'], [style*='display: none']"
+    ):
+        hidden_node.decompose()
     candidates: list[CompanyCandidate] = []
     for node, locator in organizations(soup):
         profile, evidence = profile_from_values(organization_values(node, locator), source)
@@ -43,7 +49,7 @@ def parse_companies(body: str, source: Source) -> list[CompanyCandidate]:
                 evidence.extend(extra)
         if profile.company_name:
             candidates.append(CompanyCandidate(company=profile, evidence=evidence))
-    return candidates
+    return candidates or public_contacts(soup, source)
 
 
 class CompanyWebsiteCollector:

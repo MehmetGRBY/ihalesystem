@@ -9,7 +9,7 @@ import sys
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import parse_qs, urlsplit
 
 from filelock import FileLock, Timeout
@@ -44,6 +44,8 @@ class ImportedContractor(BaseModel):
     model_config = ConfigDict(extra="allow")
     name: str = ""
     address: str | None = None
+    contract_date_raw: str | None = None
+    period_start_raw: str | None = None
     period_end_raw: str | None = None
 
 
@@ -66,7 +68,23 @@ class ImportedDocumentLink(BaseModel):
     label: str = ""
 
 
-class ImportedRecord(BaseModel):
+class ImportedAnnouncement(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    title: str | None = None
+    url: HttpUrl | None = None
+    stage: str | None = None
+    published_date_raw: str | None = None
+    tender_date_raw: str | None = None
+    announcement_text: str | None = None
+    document_links: list[ImportedDocumentLink] = Field(default_factory=list)
+
+    @field_validator("document_links", mode="before")
+    @classmethod
+    def empty_document_links(cls, value: Any) -> Any:
+        return [] if value is None else value
+
+
+class ImportedRecord(ImportedAnnouncement):
     model_config = ConfigDict(extra="allow")
     id: str = Field(pattern=r"^[0-9a-f]{24}$")
     title: str = Field(min_length=1, max_length=10000)
@@ -78,14 +96,22 @@ class ImportedRecord(BaseModel):
     tender_number: str | None = None
     authority: str | None = None
     city: str | None = None
+    project_owner: str | None = None
+    procurement_type: str | None = None
+    relevance: Literal["dogrudan", "potansiyel"] | None = None
+    match_basis: str | None = None
+    match_evidence: str | None = None
+    matched_keywords: list[str] = Field(default_factory=list)
+    document_url: HttpUrl | None = None
+    has_detail_url: bool = Field(default=False, strict=True)
+    lifecycle_only: bool = Field(default=False, strict=True)
     is_demo: bool = Field(default=False, strict=True)
     contacts: list[ImportedContact] = Field(default_factory=list)
     contractors: list[ImportedContractor] = Field(default_factory=list)
     bulletin_reference: ImportedBulletinReference | None = None
     bulletin_references: list[ImportedBulletinReference] = Field(default_factory=list)
     research_links: ImportedResearchLinks = Field(default_factory=ImportedResearchLinks)
-    document_links: list[ImportedDocumentLink] = Field(default_factory=list)
-    related_announcements: list[dict[str, Any]] = Field(default_factory=list)
+    related_announcements: list[ImportedAnnouncement] = Field(default_factory=list)
 
     @field_validator(
         "contacts",
@@ -93,6 +119,7 @@ class ImportedRecord(BaseModel):
         "bulletin_references",
         "document_links",
         "related_announcements",
+        "matched_keywords",
         mode="before",
     )
     @classmethod
@@ -141,7 +168,13 @@ def import_discovery(path: Path, *, demo: bool = False) -> int:
             row.pop(field, None)
         prepared.append(row)
     with bulucu.connect() as conn:
-        bulucu.save_items(conn, prepared)
+        try:
+            bulucu.save_items(conn, prepared)
+            # Validate the merged, rendered records inside the same transaction.
+            # A future field/parser failure must not leave an unreadable database.
+            bulucu.records(connection=conn)
+        except (TypeError, AttributeError, KeyError) as error:
+            raise ValueError("İçe aktarılan kayıtların alanları geçersiz.") from error
     # Only the import's own optional archive, using validated bulletin names.
     archive = path.parent / "ekap-bulten"
     if archive.is_dir():

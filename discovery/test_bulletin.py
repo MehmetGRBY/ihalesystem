@@ -58,6 +58,31 @@ class BulletinTests(unittest.TestCase):
         fields=form_fields('<input name="__VIEWSTATE" type="hidden" value="a&amp;b"><input name="login" type="submit"><input name="date" type="text">')
         self.assertEqual(fields,{'__VIEWSTATE':'a&b'})
 
+    def test_service_award_accepts_both_explicit_winner_labels(self):
+        for label in ('Yüklenici','Yüklenicisi'):
+            with self.subTest(label=label):
+                text=f'''1. 2026/777 HAVALANDIRMA BAKIM HİZMETİ
+SONUÇ İLANI
+ÖRNEK HASTANE BAŞHEKİMLİĞİ
+İhale kayıt numarası : 2026/777
+1- İhalenin
+a) Tarihi : 17.08.2026
+2- İhale konusu hizmetin
+a) Adı : Havalandırma Bakım Hizmeti
+b) Yapılacağı yer : Hastane
+4- Sözleşmenin
+a) Tarihi : 18.09.2026
+b) Bedeli : 100 TRY
+c) Süresi : 28.09.2026 - 15.04.2027
+d) {label} : Örnek Teknik Limited Şirketi
+e) Yüklenicinin uyruğu : Türkiye
+f) Yüklenicinin adresi : Örnek Cad. No:1
+Kamuoyuna saygıyla duyurulur.
+'''
+                rows,_=parse_text(text,SOURCE,classify,'BULTEN_28092026_HIZMET_SONUC.pdf','28.09.2026')
+                self.assertEqual(rows[0]['contractors'][0]['name'],'Örnek Teknik Limited Şirketi')
+                self.assertEqual(rows[0]['contractors'][0]['period_end_raw'],'15.04.2027')
+
 
 if __name__=='__main__':
     unittest.main()

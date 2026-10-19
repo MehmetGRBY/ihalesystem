@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import bulucu
 import ekap_bulletin
@@ -580,6 +581,9 @@ class EnrichmentService:
                                 85 if row.get("relevance") == "dogrudan" else 70,
                             ),
                             next_action="Doğrulanan yüklenicinin HVAC satınalma aşamasını öğren.",
+                        )
+                        item["contact_search_url"] = "https://www.google.com/search?q=" + quote(
+                            winner["company_name"] + " kurumsal iletişim"
                         )
                         supplied = {"target_name"}
                         if winner.get("phone") or winner.get("email"):

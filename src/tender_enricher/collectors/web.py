@@ -11,6 +11,7 @@ from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
+from bs4 import BeautifulSoup
 
 from tender_enricher.config import Settings
 from tender_enricher.errors import CollectionError
@@ -42,16 +43,32 @@ def public_url(url: str) -> None:
 
 def check_challenge(body: str) -> None:
     lowered = body.lower()
-    markers = (
-        "cf-chl-",
-        "g-recaptcha",
-        "hcaptcha",
+    prompts = (
         "verify you are human",
         "insan olduğunuzu doğrulayın",
         "access denied",
         "just a moment...",
     )
-    if any(marker in lowered for marker in markers):
+    widget = "g-recaptcha" in lowered or "hcaptcha" in lowered
+    if "cf-chl-" not in lowered and not widget and not any(p in lowered for p in prompts):
+        return
+    soup = BeautifulSoup(body, "lxml")
+    for node in soup.select("script, style, noscript, [hidden]"):
+        node.decompose()
+    visible = soup.get_text(" ", strip=True).lower()
+    protected = "cf-chl-" in lowered or any(prompt in visible for prompt in prompts)
+    if widget and not protected:
+        # A CAPTCHA on a contact/newsletter form does not gate the surrounding
+        # public page. Never submit or render the form to obtain its contents.
+        for node in soup.select("form, iframe"):
+            node.decompose()
+        public_text = soup.get_text(" ", strip=True)
+        public_contacts = soup.select('a[href^="mailto:"], a[href^="tel:"], address')
+        readable = (bool(public_contacts) and len(public_text) >= 50) or (
+            len(public_text) >= 300 and soup.find(["h1", "h2", "article"]) is not None
+        )
+        protected = not readable
+    if protected:
         raise CollectionError("access_protected", "Access protection detected; collection stopped.")
 
 

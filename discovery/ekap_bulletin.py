@@ -214,7 +214,7 @@ def parse_text(text, source, classify, filename, published):
             if start is not None:
                 authority=' '.join(lines[start:])
         contractors=[]
-        name=extract_field(block,r'd\)\s*Yüklenicisi\s*:\s*(.*?)\s*e\)\s*Yüklenicinin') if stage=='sonuc' else ''
+        name=extract_field(block,r'd\)\s*Yüklenici(?:si)?\s*:\s*(.*?)\s*e\)\s*Yüklenicinin') if stage=='sonuc' else ''
         if name:
             contract_part=re.split(r'4\s*[-–]\s*Sözleşmenin',block,maxsplit=1)[-1]
             period=extract_field(contract_part,r'c\)\s*Süresi\s*:\s*(.*?)\s*d\)')

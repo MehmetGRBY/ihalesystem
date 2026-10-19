@@ -36,7 +36,7 @@ Demo firmalar ve iletişimler sentetiktir; panelde ve JSON’da açıkça işare
 3. PDF’deki ihale numarası ve yüklenici alanı TenderEnricher’a kanıt olur. JSON’daki `contractors` veya `official` etiketi tek başına kazanan kanıtı sayılmaz; arşivdeki PDF tekrar doğrulanır.
 4. Karttaki **Firma araştır** / **Araştırmayı yenile** düğmesi ek şirket araştırmasını başlatır. İstenirse firma sitesi ve sonuç ilanı bağlantısı girilebilir. Üstteki **Firmaları araştır** düğmesi en fazla 10 sonuç kaydını işler.
 5. Kazanan, telefon/e-posta/adres, eksikler, skorlar, çelişkiler ve kaynaklar aynı kartın **Firma araştırması** bölümünde görünür. İdare telefonu yüklenicinin telefonu yapılmaz; ihale şehri şirketin ili sayılmaz.
-6. Kabul edilen kazanan satış kartındaki hedef yükleniciyi günceller. İptal, kapanmış sözleşme veya eskimiş araştırma sonucu aktif satış adayı olarak yeniden açılmaz.
+6. Kabul edilen kazanan satış kartındaki hedef yükleniciyi ve kurumsal iletişim arama bağlantısını günceller. İptal, kapanmış sözleşme veya eskimiş araştırma sonucu aktif satış adayı olarak yeniden açılmaz.
 
 İnternette URL keşfi için `.env.example` → `.env` kopyalayıp isteğe bağlı `TE_BRAVE_API_KEY` ayarlanabilir. Anahtar yoksa verilen/önceden bilinen kaynak URL’leri araştırılır. Anahtar yokken bağlantısız kayıt için yeni web adresi keşfi yapılmaz. API, kendi hesabınızın planını kullanır. Tarayıcı desteği isteğe bağlıdır ve TenderEnricher’ın mevcut robots/erişim politikalarını korur.
 
@@ -44,13 +44,17 @@ Elle başlatılan EKAP araştırmasında yerel PDF eksik veya okunamıyorsa yap�
 
 İKN’si veya idaresi eksik kayıt ile İKN’siz yatırım projesi panelde tutulur; desteklenmeyen araştırma nedeni gösterilir. Bir sonuç bulunamaması keşif kaydını silmez. Ortak girişim, farklı kazanan veya çelişkili alanlar elle incelemeye ayrılır; bilgi tahmin edilmez. `partial` araştırmanın bazı alanları eksik/tek kaynaklı olduğunu, `resolved` temel alanların bağımsız kaynaklarla desteklendiğini belirtir. Skorlar istatistiksel olasılık değildir.
 
-Firma sitelerinde açık şirket kimliği içeren desteklenen etiketler veya Organization JSON-LD aranır. Her site tasarımı desteklenmez; erişim koruması veya tanınmayan sayfa yapısı olduğunda ilgili alanlar boş bırakılır ve kaynak notu eklenir.
+Firma sitelerinde Organization JSON-LD, microdata, hCard ve açık şirket kimliğiyle yayımlanan HTML iletişim alanları okunur. Telefon/e-posta bağlantıları, adres başlıkları ve kurumsal sayfa bilgileri kaynak konumlarıyla saklanır. Form verileri, gizli alanlar ve kişilere ait kartlar şirket bilgisi sayılmaz. İletişim formundaki CAPTCHA, çevresindeki açık iletişim metninin okunmasını engellemez; gerçek erişim doğrulaması varsa işlem durur.
+
+Bir sayfanın okunabilmesi şirketin ihale yüklenicisi olduğunu tek başına kanıtlamaz. Unvan ile ek kimlik/adres/site eşleşmesi kontrolleri korunur. Çelişkili telefonlar ayrı kanıt olarak kalır. Her site tasarımı desteklenmez; tanınmayan veya eşleşmeyen bilgiler kaynak notuyla belirtilir.
+
+EKAP yapım/hizmet sonuçlarında kullanılan `Yüklenici` ve `Yüklenicisi` alanları desteklenir. Eski bir sürümle işlenmiş arşivde bu alanlar eksikse yerel bültenlerin yeniden işlenmesi gerekir; PDF’leri tekrar indirmek gerekmez.
 
 ## İçe aktarma ve komutlar
 
 EFA’nın mevcut JSON çıktısı (şema 1.3) veya birleşik çıktı içe alınabilir. Kimlikler korunur; eski araştırma iddiaları doğrudan doğrulanmış bilgi olarak alınmaz. JSON ile aynı klasördeki `ekap-bulten/` PDF arşivi varsa taşınır:
 
-İletişim, yüklenici, bülten ve araştırma bağlantıları içe aktarmadan önce doğrulanır. Bozuk kayıt varsa dosyadan hiçbir kayıt yazılmaz; boş isteğe bağlı listeler desteklenir.
+İletişim, yüklenici, bülten, tarih, belge ve araştırma bağlantıları içe aktarmadan önce doğrulanır. Tarih alanları metin veya boş değer kabul eder; liste/nesne gibi bozuk türler reddedilir. Ayrıca birleştirilen kayıtlar aynı veritabanı işlemi içinde okunabilirlik kontrolünden geçer; hata varsa aktarım geri alınır. Boş isteğe bağlı listeler desteklenir.
 
 ```bash
 python app.py --import /tam/yol/data/ihaleler.json

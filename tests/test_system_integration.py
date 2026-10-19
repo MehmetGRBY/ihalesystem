@@ -176,7 +176,9 @@ def test_number_mapping_preserves_original_id_and_never_uses_idare_phone(service
     assert row["id"] != tender.tender_id
 
 
-def make_award_pdf(path, number="2026/123", company="Ornek Insaat Limited Sirketi"):
+def make_award_pdf(
+    path, number="2026/123", company="Ornek Insaat Limited Sirketi", winner_label="Yüklenicisi"
+):
     import pymupdf
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,7 +196,7 @@ b) Yapılacağı yer : Istanbul
 a) Tarihi : 08.10.2026
 b) Bedeli : 100 TRY
 c) Süresi : 19.10.2026 - 21.04.2028
-d) Yüklenicisi : {company}
+d) {winner_label} : {company}
 e) Yüklenicinin uyruğu : Turkiye
 f) Yüklenicinin adresi : Ornek is adresi
 Kamuoyuna saygıyla duyurulur.
@@ -235,10 +237,11 @@ def test_real_pdf_path_traversal_never_used_as_award(service):
     assert not BulletinWinnerProvider(row, ekap_bulletin.STORE).collect(tender).sources
 
 
-def test_local_pdf_is_winner_proof_without_network_or_trusting_imported_name(service):
+@pytest.mark.parametrize("kind,label", [("YAPIM", "Yüklenicisi"), ("HIZMET", "Yüklenici")])
+def test_local_pdf_is_winner_proof_without_network_or_trusting_imported_name(service, kind, label):
     service.demo = False
-    path = ekap_bulletin.STORE / "BULTEN_19102026_YAPIM_SONUC.pdf"
-    make_award_pdf(path)
+    path = ekap_bulletin.STORE / f"BULTEN_19102026_{kind}_SONUC.pdf"
+    make_award_pdf(path, winner_label=label)
     row = {
         "id": "a" * 24,
         "title": "Hastane Binası Yapım İşi",
@@ -402,6 +405,18 @@ def test_scan_command_reports_total_source_failure(tmp_path, monkeypatch):
         ("document_links", ["bad"]),
         ("related_announcements", ["bad"]),
         ("is_demo", "false"),
+        ("tender_date_raw", ["invalid-date-type"]),
+        ("published_date_raw", {"date": "19.10.2026"}),
+        ("announcement_text", ["bad"]),
+        ("contractors", [{"name": "Firma", "period_end_raw": ["bad"]}]),
+        ("contractors", [{"name": "Firma", "period_start_raw": 123}]),
+        ("contractors", [{"name": "Firma", "contract_date_raw": {"date": "bad"}}]),
+        ("related_announcements", [{"url": {"invalid": "url"}}]),
+        ("related_announcements", [{"tender_date_raw": ["bad"]}]),
+        ("related_announcements", [{"document_links": [{"url": "javascript:alert(1)"}]}]),
+        ("project_owner", ["bad"]),
+        ("matched_keywords", [{"bad": "keyword"}]),
+        ("document_url", ["https://example.com/file.pdf"]),
     ],
 )
 def test_invalid_nested_import_is_rejected_before_any_record_is_written(
@@ -605,3 +620,38 @@ def test_manually_supplied_urls_survive_persistent_queue_and_resolve_company(ser
         assert result["winner"]["company_name"].startswith("ABC")
     finally:
         restarted.close()
+
+
+def test_import_rolls_back_when_merged_records_cannot_be_rendered(service, tmp_path, monkeypatch):
+    row = seeded()[0]
+    before = bulucu.records()
+    new_id = hashlib.sha256(b"unrenderable import").hexdigest()[:24]
+    path = tmp_path / "import.json"
+    path.write_text(json.dumps([dict(row, id=new_id, source_key="other")]))
+    render = bulucu.opportunities.enrich
+
+    def fail_for_new_row(item):
+        if item["id"] == new_id:
+            raise ValueError("Parser failed after merging")
+        return render(item)
+
+    monkeypatch.setattr(bulucu.opportunities, "enrich", fail_for_new_row)
+    with pytest.raises(ValueError):
+        app.import_discovery(path, demo=True)
+    assert bulucu.records() == before
+
+
+@pytest.mark.parametrize("old_link", [None, "https://www.google.com/search?q=old-authority"])
+def test_resolved_winner_updates_contact_search_link(service, old_link):
+    from urllib.parse import parse_qs, urlsplit
+
+    row = next(r for r in seeded() if r["tender_number"] == "2026/123456")
+    service.request(row, ResearchRequest(id=row["id"]))
+    service.drain()
+    result = service.attach([dict(row, contact_search_url=old_link)])[0]
+    target = result["opportunity"]["target_name"]
+    assert parse_qs(urlsplit(result["contact_search_url"]).query)["q"] == [
+        target + " kurumsal iletişim"
+    ]
+    archived = dict(row, opportunity={**row["opportunity"], "status": "arsiv"})
+    assert service.attach([archived])[0]["contact_search_url"] == row["contact_search_url"]

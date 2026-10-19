@@ -211,9 +211,11 @@ def reconcile_projects(conn, source, items):
     return changed
 
 
-def records(since=None):
-    with connect() as conn:
-        rows = conn.execute("SELECT payload,first_seen,last_seen,updated_at,revision FROM tenders ORDER BY updated_at DESC,id").fetchall()
+def records(since=None, *, connection=None):
+    if connection is None:
+        with connect() as conn:
+            return records(since, connection=conn)
+    rows = connection.execute("SELECT payload,first_seen,last_seen,updated_at,revision FROM tenders ORDER BY updated_at DESC,id").fetchall()
     items = []
     cutoff = datetime.fromisoformat(since) if since else None
     if cutoff and cutoff.tzinfo is None:
