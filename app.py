@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from filelock import FileLock, Timeout
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 ROOT = Path(__file__).resolve().parent
@@ -29,6 +29,43 @@ from tender_enricher.config import Settings  # noqa: E402
 DISCOVERY_SCAN = bulucu.scan
 
 
+class ImportedContact(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    name: str | None = None
+    role: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+    source_url: HttpUrl | None = None
+    acquisition_method: str | None = None
+
+
+class ImportedContractor(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    name: str = ""
+    address: str | None = None
+    period_end_raw: str | None = None
+
+
+class ImportedBulletinReference(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    filename: str = Field(pattern=r"^BULTEN_\d{8}_[A-Z_]+\.pdf$")
+    page_start: int = Field(default=1, ge=1)
+
+
+class ImportedResearchLinks(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    award_urls: list[HttpUrl] = Field(default_factory=list, max_length=20)
+    company_urls: list[HttpUrl] = Field(default_factory=list, max_length=20)
+    registry_urls: list[HttpUrl] = Field(default_factory=list, max_length=20)
+
+
+class ImportedDocumentLink(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    url: HttpUrl
+    label: str = ""
+
+
 class ImportedRecord(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: str = Field(pattern=r"^[0-9a-f]{24}$")
@@ -37,6 +74,35 @@ class ImportedRecord(BaseModel):
     source_url: HttpUrl
     source: str = Field(min_length=1)
     stage: str = Field(pattern=r"^(ilan|duzeltme|degerlendirme|iptal|sonuc|kapandi|proje)$")
+    source_key: str | None = None
+    tender_number: str | None = None
+    authority: str | None = None
+    city: str | None = None
+    is_demo: bool = Field(default=False, strict=True)
+    contacts: list[ImportedContact] = Field(default_factory=list)
+    contractors: list[ImportedContractor] = Field(default_factory=list)
+    bulletin_reference: ImportedBulletinReference | None = None
+    bulletin_references: list[ImportedBulletinReference] = Field(default_factory=list)
+    research_links: ImportedResearchLinks = Field(default_factory=ImportedResearchLinks)
+    document_links: list[ImportedDocumentLink] = Field(default_factory=list)
+    related_announcements: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator(
+        "contacts",
+        "contractors",
+        "bulletin_references",
+        "document_links",
+        "related_announcements",
+        mode="before",
+    )
+    @classmethod
+    def empty_lists(cls, value: Any) -> Any:
+        return [] if value is None else value
+
+    @field_validator("research_links", mode="before")
+    @classmethod
+    def empty_links(cls, value: Any) -> Any:
+        return {} if value is None else value
 
 
 def configure_paths(directory: Path) -> None:

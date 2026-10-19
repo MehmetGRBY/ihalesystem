@@ -40,11 +40,17 @@ Demo firmalar ve iletişimler sentetiktir; panelde ve JSON’da açıkça işare
 
 İnternette URL keşfi için `.env.example` → `.env` kopyalayıp isteğe bağlı `TE_BRAVE_API_KEY` ayarlanabilir. Anahtar yoksa verilen/önceden bilinen kaynak URL’leri araştırılır. Anahtar yokken bağlantısız kayıt için yeni web adresi keşfi yapılmaz. API, kendi hesabınızın planını kullanır. Tarayıcı desteği isteğe bağlıdır ve TenderEnricher’ın mevcut robots/erişim politikalarını korur.
 
+Elle başlatılan EKAP araştırmasında yerel PDF eksik veya okunamıyorsa yapılandırılmış web araması kullanılır. Yerel PDF bir kazanan ya da ortak girişim kararı veriyorsa ek sonuç araması yapılmaz; verilen sonuç bağlantıları ayrıca kontrol edilir.
+
 İKN’si veya idaresi eksik kayıt ile İKN’siz yatırım projesi panelde tutulur; desteklenmeyen araştırma nedeni gösterilir. Bir sonuç bulunamaması keşif kaydını silmez. Ortak girişim, farklı kazanan veya çelişkili alanlar elle incelemeye ayrılır; bilgi tahmin edilmez. `partial` araştırmanın bazı alanları eksik/tek kaynaklı olduğunu, `resolved` temel alanların bağımsız kaynaklarla desteklendiğini belirtir. Skorlar istatistiksel olasılık değildir.
+
+Firma sitelerinde açık şirket kimliği içeren desteklenen etiketler veya Organization JSON-LD aranır. Her site tasarımı desteklenmez; erişim koruması veya tanınmayan sayfa yapısı olduğunda ilgili alanlar boş bırakılır ve kaynak notu eklenir.
 
 ## İçe aktarma ve komutlar
 
 EFA’nın mevcut JSON çıktısı (şema 1.3) veya birleşik çıktı içe alınabilir. Kimlikler korunur; eski araştırma iddiaları doğrudan doğrulanmış bilgi olarak alınmaz. JSON ile aynı klasördeki `ekap-bulten/` PDF arşivi varsa taşınır:
+
+İletişim, yüklenici, bülten ve araştırma bağlantıları içe aktarmadan önce doğrulanır. Bozuk kayıt varsa dosyadan hiçbir kayıt yazılmaz; boş isteğe bağlı listeler desteklenir.
 
 ```bash
 python app.py --import /tam/yol/data/ihaleler.json
@@ -77,7 +83,7 @@ Tek araştırma örneği:
 {"id":"kesif-kaydinin-24-haneli-kimligi","company_urls":[],"award_urls":[],"force":false}
 ```
 
-Boş `{}` istek en fazla 10 sonuç kaydını sıraya alır. Birleşik çıktı sürümü **2.0**; mevcut keşif alanları korunur, her kayda `enrichment` eklenir. Tam kanıtlar `enrichment.result` içindedir. Kısa panel çıktısı uzun ilan/kanıt metinlerini çıkarır. Araştırma tamamlanınca keşif `revision`/`updated_at` güncellenir; sadece geçen saate bağlı ihale durumu için tüketiciler tam listeyi yeniden değerlendirmelidir. Kaynak/ihale değişince eski araştırma `stale` olur ve güncel sonuç gibi gösterilmez.
+Boş `{}` istek en fazla 10 sonuç kaydını sıraya alır. URL veya `force` seçeneği verilirse `id` zorunludur. Birleşik çıktı sürümü **2.0**; mevcut keşif alanları korunur, her kayda `enrichment` eklenir. Tam kanıtlar `enrichment.result` içindedir. Kısa panel çıktısı uzun ilan/kanıt metinlerini çıkarır. Araştırma tamamlanınca keşif `revision`/`updated_at` güncellenir; zaman damgaları aynı saniyedeki değişiklikleri ayırmak için mikrosaniye içerir. Sadece geçen saate bağlı ihale durumu için tüketiciler tam listeyi yeniden değerlendirmelidir. Kaynak bağlantısı/ihale değişince eski araştırma `stale` olur ve güncel sonuç gibi gösterilmez.
 
 ## Geliştirme
 

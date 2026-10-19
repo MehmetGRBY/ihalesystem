@@ -166,7 +166,14 @@ class WebClient:
                         chunks.append(chunk)
                     response = httpx.Response(
                         streamed.status_code,
-                        headers=streamed.headers,
+                        # iter_bytes() already decoded compression. Preserve semantic
+                        # headers, but do not decode this buffered body a second time.
+                        headers={
+                            key: value
+                            for key, value in streamed.headers.items()
+                            if key.lower()
+                            not in {"content-encoding", "content-length", "transfer-encoding"}
+                        },
                         content=b"".join(chunks),
                         request=streamed.request,
                     )

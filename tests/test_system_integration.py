@@ -335,6 +335,8 @@ def test_http_research_and_combined_export_contract(service):
         ({}, "https://other.example", None, 403),
         ({"id": "does-not-exist"}, None, None, 404),
         ({"company_urls": ["javascript:alert(1)"]}, None, None, 400),
+        ({"company_urls": ["https://company.example/"]}, None, None, 400),
+        ({"force": True}, None, None, 400),
         ({}, None, 20000, 413),
     ],
 )
@@ -385,3 +387,221 @@ def test_scan_command_reports_total_source_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(ekap_bulletin, "STORE", tmp_path / "discovery" / "ekap-bulten")
     monkeypatch.setattr(bulucu, "scan", app.DISCOVERY_SCAN)
     assert app.main(["--scan", "--data-dir", str(tmp_path)]) == 1
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("contacts", ["bad"]),
+        ("contractors", [42]),
+        ("contractors", [{"name": {"bad": "name"}}]),
+        ("research_links", "bad"),
+        ("research_links", {"company_urls": ["javascript:alert(1)"]}),
+        ("bulletin_references", ["bad"]),
+        ("bulletin_reference", {"filename": 123}),
+        ("document_links", ["bad"]),
+        ("related_announcements", ["bad"]),
+        ("is_demo", "false"),
+    ],
+)
+def test_invalid_nested_import_is_rejected_before_any_record_is_written(
+    service, tmp_path, field, value
+):
+    from pydantic import ValidationError
+
+    row = seeded()[0]
+    new_id = hashlib.sha256(b"new import").hexdigest()[:24]
+    path = tmp_path / "import.json"
+    path.write_text(
+        json.dumps([dict(row, id=new_id), dict(row, **{field: value})]), encoding="utf-8"
+    )
+    before = bulucu.records()
+    with pytest.raises(ValidationError):
+        app.import_discovery(path, demo=True)
+    assert bulucu.records() == before
+
+
+def test_import_normalizes_missing_optional_lists_and_remains_researchable(service, tmp_path):
+    row = seeded()[0]
+    path = tmp_path / "import.json"
+    path.write_text(
+        json.dumps(
+            [
+                dict(
+                    row,
+                    contacts=None,
+                    contractors=None,
+                    research_links=None,
+                    bulletin_references=None,
+                )
+            ]
+        )
+    )
+    assert app.import_discovery(path, demo=True) == 1
+    imported = next(r for r in bulucu.records() if r["id"] == row["id"])
+    service.request(imported, ResearchRequest(id=row["id"]))
+    service.drain()
+    assert service.job(row["id"])["state"] == "completed"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"url": "https://changed.demo.test/result"},
+        {"source_url": "https://changed.demo.test/list"},
+        {"has_detail_url": False},
+    ],
+)
+def test_changed_research_source_hides_old_result_and_allows_fresh_research(service, change):
+    row = next(r for r in seeded() if r["tender_number"] == "2026/123456")
+    request = ResearchRequest(id=row["id"])
+    service.request(row, request)
+    service.drain()
+    changed = dict(row, **change)
+    assert service.attach([changed])[0]["enrichment"]["state"] == "stale"
+    assert service.attach([changed])[0]["enrichment"]["result"] is None
+    assert service.request(changed, request) == "queued"
+
+
+def test_ekap_without_local_pdf_uses_configured_award_search(service, monkeypatch):
+    from dataclasses import replace
+
+    from pydantic import SecretStr
+
+    import system_bridge
+    from tender_enricher.collectors.demo import DemoFetcher
+
+    searches = []
+
+    class Search:
+        def search(self, query, limit=5):
+            searches.append(query)
+            return ["https://awards.demo.test/2026-123456"]
+
+        def close(self):
+            pass
+
+    class FixtureFetcher(DemoFetcher):
+        def fetch(self, url):
+            return replace(super().fetch(url), is_demo=False)
+
+    monkeypatch.setattr(system_bridge, "BraveSearchProvider", lambda _: Search())
+    monkeypatch.setattr(system_bridge, "WebClient", lambda _: FixtureFetcher(ROOT / "data/demo"))
+    service.demo = False
+    service.settings = service.settings.model_copy(update={"brave_api_key": SecretStr("test")})
+    row = dict(
+        next(r for r in seeded() if r["tender_number"] == "2026/123456"),
+        source_key="ekap",
+        research_links={},
+        is_demo=False,
+    )
+    with bulucu.connect() as conn:
+        bulucu.save_items(conn, [row])
+    service.request(row, ResearchRequest(id=row["id"]))
+    service.drain()
+    result = service.attach([row])[0]["enrichment"]["result"]
+    assert any("2026/123456" in query for query in searches)
+    assert result["winner"]["company_name"].startswith("ABC")
+
+
+@pytest.mark.parametrize("local_kind", ["ambiguous", "winner"])
+def test_local_winner_decision_skips_web_award_search(service, local_kind):
+    import system_bridge
+    from tender_enricher.collectors.demo import DemoFetcher
+    from tender_enricher.collectors.ekap.award import PublicAwardCollector
+    from tender_enricher.models import Collection, Issue
+
+    # Ambiguous local official evidence must stay in review, not be replaced by web results.
+    class Local:
+        name = "local"
+
+        def collect(self, tender):
+            if local_kind == "winner":
+                return PublicAwardCollector(
+                    DemoFetcher(ROOT / "data/demo"), service.settings
+                ).collect(tender)
+            return Collection(
+                issues=[Issue(stage="winner_collection", code="award_ambiguous", message="JV")]
+            )
+
+    class Web:
+        name = "web"
+
+        def collect(self, tender):
+            raise AssertionError("Web award search must not override the local decision")
+
+    provider = system_bridge.AwardFallbackProvider(Local(), Web())
+    row = next(r for r in seeded() if r["tender_number"] == "2026/123456")
+    result = provider.collect(normalize_tender(as_tender(row, ResearchRequest())))
+    if local_kind == "winner":
+        assert result.winner_claims[0].company.company_name.startswith("ABC")
+    else:
+        assert result.issues[0].code == "award_ambiguous"
+
+
+def test_corrupt_local_pdf_can_fall_back_to_award_page(service):
+    from system_bridge import AwardFallbackProvider
+    from tender_enricher.collectors.demo import DemoFetcher
+    from tender_enricher.collectors.ekap.award import PublicAwardCollector
+
+    row = dict(
+        next(r for r in seeded() if r["tender_number"] == "2026/123456"),
+        source_key="ekap",
+        bulletin_reference={"filename": "BULTEN_19102026_YAPIM_SONUC.pdf"},
+    )
+    ekap_bulletin.STORE.mkdir(parents=True)
+    (ekap_bulletin.STORE / row["bulletin_reference"]["filename"]).write_bytes(b"broken PDF")
+    result = AwardFallbackProvider(
+        BulletinWinnerProvider(row, ekap_bulletin.STORE),
+        PublicAwardCollector(DemoFetcher(ROOT / "data/demo"), service.settings),
+    ).collect(normalize_tender(as_tender(row, ResearchRequest())))
+    assert result.winner_claims[0].company.company_name.startswith("ABC")
+    assert any(issue.code == "provider_error" for issue in result.issues)
+
+
+def test_incremental_export_includes_research_completed_within_the_same_second(
+    service, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    class Clock(datetime):
+        value = datetime(2026, 10, 19, 12, 0, 0, 100000, tzinfo=UTC)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.value.astimezone(tz)
+
+    monkeypatch.setattr(bulucu, "datetime", Clock)
+    row = seeded()[0]
+    cursor = service.snapshot()["exported_at"]
+    Clock.value = Clock.value.replace(microsecond=200000)
+    service.request(row, ResearchRequest(id=row["id"]))
+    service.drain()
+    changes = service.snapshot(since=cursor)["items"]
+    assert [item["id"] for item in changes] == [row["id"]]
+    assert changes[0]["enrichment"]["state"] == "completed"
+
+
+def test_manually_supplied_urls_survive_persistent_queue_and_resolve_company(service):
+    row = dict(
+        next(r for r in seeded() if r["tender_number"] == "2026/123456"),
+        source_key="ekap",
+        research_links={},
+    )
+    with bulucu.connect() as conn:
+        bulucu.save_items(conn, [row])
+    request = ResearchRequest(
+        id=row["id"],
+        award_urls=["https://awards.demo.test/2026-123456"],
+        company_urls=["https://abc.demo.test/"],
+        registry_urls=["https://registry.demo.test/abc"],
+    )
+    service.request(row, request)
+    restarted = EnrichmentService(ROOT, service.settings, demo=True, start_worker=False)
+    try:
+        restarted.drain()
+        result = restarted.attach([row])[0]["enrichment"]["result"]
+        assert result["status"] == "resolved"
+        assert result["winner"]["company_name"].startswith("ABC")
+    finally:
+        restarted.close()

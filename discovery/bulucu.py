@@ -25,7 +25,7 @@ TR = timezone(timedelta(hours=3))
 
 
 def now():
-    return datetime.now(TR).isoformat(timespec="seconds")
+    return datetime.now(TR).isoformat(timespec="microseconds")
 
 
 def normalize(value):

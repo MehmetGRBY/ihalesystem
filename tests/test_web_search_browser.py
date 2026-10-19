@@ -1,4 +1,6 @@
+import gzip
 import socket
+import zlib
 from unittest.mock import Mock
 
 import httpx
@@ -213,6 +215,51 @@ def test_page_size_and_content_type_limits(settings):
         )
         with pytest.raises(CollectionError):
             client.fetch("https://a.com/page")
+
+
+@pytest.mark.parametrize("encoding,compress", [("gzip", gzip.compress), ("deflate", zlib.compress)])
+def test_compressed_robots_and_html_are_decoded_once(settings, encoding, compress):
+    body = "<p>İletişim: özgün Türkçe sayfa</p>"
+
+    def handler(request):
+        text = "User-agent: *\nAllow: /" if request.url.path == "/robots.txt" else body
+        compressed = compress(text.encode())
+        return httpx.Response(
+            200,
+            headers={
+                "Content-Encoding": encoding,
+                "Content-Length": str(len(compressed)),
+                "Content-Type": "text/html; charset=utf-8",
+            },
+            stream=httpx.ByteStream(compressed),
+        )
+
+    client = web(settings, handler)
+    try:
+        assert client.fetch("https://a.com/contact").body == body
+    finally:
+        client.close()
+
+
+def test_compressed_body_size_limit_applies_after_decompression(settings):
+    settings = settings.model_copy(update={"max_response_bytes": 1024})
+
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip", "Content-Type": "text/html"},
+            stream=httpx.ByteStream(gzip.compress(b"x" * 1025)),
+        )
+
+    client = web(settings, handler)
+    try:
+        with pytest.raises(CollectionError) as failure:
+            client.fetch("https://a.com/contact")
+        assert failure.value.code == "response_too_large"
+    finally:
+        client.close()
 
 
 def test_browser_stops_on_http_protection_before_launch(settings, monkeypatch):

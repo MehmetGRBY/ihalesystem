@@ -17,7 +17,7 @@ from typing import Any
 import bulucu
 import ekap_bulletin
 from pdf_text import read_pdf
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from tender_enricher.collectors.browser import BrowserClient
 from tender_enricher.collectors.company_website.website import CompanyWebsiteCollector
@@ -30,6 +30,7 @@ from tender_enricher.config import Settings
 from tender_enricher.db.migrate import upgrade_database
 from tender_enricher.db.repository import SqlAlchemyResultRepository
 from tender_enricher.db.session import make_engine
+from tender_enricher.enrichment import provider_failure
 from tender_enricher.evidence import make_evidence, make_source
 from tender_enricher.models import (
     Collection,
@@ -43,6 +44,7 @@ from tender_enricher.models import (
 )
 from tender_enricher.normalization import company_key, tender_id, text_key
 from tender_enricher.pipeline import Pipeline
+from tender_enricher.ports import WinnerProvider
 
 Record = dict[str, Any]
 
@@ -54,6 +56,14 @@ class ResearchRequest(BaseModel):
     company_urls: list[HttpUrl] = Field(default_factory=list, max_length=10)
     registry_urls: list[HttpUrl] = Field(default_factory=list, max_length=10)
     force: bool = False
+
+    @model_validator(mode="after")
+    def options_require_record(self) -> "ResearchRequest":
+        if self.id is None and (
+            self.force or self.award_urls or self.company_urls or self.registry_urls
+        ):
+            raise ValueError("Araştırma seçenekleri için bir kayıt kimliği gerekli.")
+        return self
 
 
 def canonical_hash(value: Any) -> str:
@@ -224,6 +234,32 @@ class BulletinWinnerProvider:
         return result
 
 
+class AwardFallbackProvider:
+    """Use web award research only when the local archive has no winner decision."""
+
+    name = "award_fallback"
+
+    def __init__(self, local: WinnerProvider, web: WinnerProvider) -> None:
+        self.local, self.web = local, web
+
+    def collect(self, tender: NormalizedTender) -> Collection:
+        try:
+            result = self.local.collect(tender)
+        except Exception as error:
+            result = Collection(
+                issues=[provider_failure(self.local.name, "winner_collection", error)]
+            )
+        if result.winner_claims or any(issue.code == "award_ambiguous" for issue in result.issues):
+            return result
+        fallback = self.web.collect(tender)
+        return Collection(
+            sources=[*result.sources, *fallback.sources],
+            winner_claims=[*result.winner_claims, *fallback.winner_claims],
+            candidates=[*result.candidates, *fallback.candidates],
+            issues=[*result.issues, *fallback.issues],
+        )
+
+
 class EnrichmentService:
     def __init__(
         self, root: Path, settings: Settings, *, demo: bool = False, start_worker: bool = True
@@ -279,6 +315,9 @@ class EnrichmentService:
             "id",
             "title",
             "source_key",
+            "url",
+            "source_url",
+            "has_detail_url",
             "tender_number",
             "authority",
             "city",
@@ -431,7 +470,7 @@ class EnrichmentService:
         fetcher = None
         search = None
         try:
-            request = ResearchRequest.model_validate_json(job["options"])
+            request = ResearchRequest.model_validate({**json.loads(job["options"]), "id": ident})
             tender = as_tender(row, request)
             winners: list[Any] = [BulletinWinnerProvider(row, ekap_bulletin.STORE)]
             companies: list[Any] = []
@@ -446,9 +485,11 @@ class EnrichmentService:
                         and self.settings.brave_api_key.get_secret_value()
                     ):
                         search = BraveSearchProvider(self.settings)
-                # A verified local award does not need an additional award search.
-                if tender.award_urls or row.get("source_key") != "ekap":
-                    winners.append(PublicAwardCollector(fetcher, self.settings, search))
+                web_awards = PublicAwardCollector(fetcher, self.settings, search)
+                if tender.award_urls:
+                    winners.append(web_awards)
+                else:
+                    winners = [AwardFallbackProvider(winners[0], web_awards)]
                 companies = [
                     CompanyWebsiteCollector(fetcher, self.settings, search),
                     PublicRegistryCollector(fetcher, self.settings),
