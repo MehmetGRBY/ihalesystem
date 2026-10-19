@@ -38,7 +38,22 @@ Demo firmalar ve iletişimler sentetiktir; panelde ve JSON’da açıkça işare
 5. Kazanan, telefon/e-posta/adres, eksikler, skorlar, çelişkiler ve kaynaklar aynı kartın **Firma araştırması** bölümünde görünür. İdare telefonu yüklenicinin telefonu yapılmaz; ihale şehri şirketin ili sayılmaz.
 6. Kabul edilen kazanan satış kartındaki hedef yükleniciyi ve kurumsal iletişim arama bağlantısını günceller. İptal, kapanmış sözleşme veya eskimiş araştırma sonucu aktif satış adayı olarak yeniden açılmaz.
 
-İnternette URL keşfi için `.env.example` → `.env` kopyalayıp isteğe bağlı `TE_BRAVE_API_KEY` ayarlanabilir. Anahtar yoksa verilen/önceden bilinen kaynak URL’leri araştırılır. Anahtar yokken bağlantısız kayıt için yeni web adresi keşfi yapılmaz. API, kendi hesabınızın planını kullanır. Tarayıcı desteği isteğe bağlıdır ve TenderEnricher’ın mevcut robots/erişim politikalarını korur.
+İnternette URL keşfi birden fazla sağlayıcıyla çalışır. `.env.example` → `.env` kopyalanarak istenen bağlantılar yapılandırılır:
+
+| Sağlayıcı | Ayar |
+| --- | --- |
+| [Brave Search](https://api-dashboard.search.brave.com/) | `TE_BRAVE_API_KEY` |
+| [Google sonuçları / Serper](https://serper.dev/) | `TE_SERPER_API_KEY` |
+| [Tavily](https://app.tavily.com/) | `TE_TAVILY_API_KEY` |
+| Kendi SearXNG sunucunuz | `TE_SEARXNG_URL` (ör. `http://127.0.0.1:8080`) |
+
+Birden fazla anahtar/sunucu tanımlandığında **hepsi aynı sorguya paralel katılır**; sonuçlar sağlayıcılar arasında dönüşümlü alınır. Bir sağlayıcının hata vermesi diğerlerini durdurmaz. Tekrarlanan bağlantılar ve takip etiketleri ayıklanır; kısa süreli başarılı sorgu önbelleği gereksiz tekrarları azaltır. Sağlayıcı hataları araştırma kaynak notlarında görünür. Aynı bağlantıyı iki arama motorunun bulması bağımsız ikinci kanıt sayılmaz.
+
+Varsayılan seçim `TE_SEARCH_PROVIDERS=["brave","serper","tavily","searxng"]`. Yalnızca seçilen ve ayarı bulunan sağlayıcılar kullanılır; örneğin `["serper","tavily"]` Brave’i devre dışı bırakır. Yeni sağlayıcı eklenince elle araştırmanın eski önbelleği kullanılmaz. Panel ve `/api/status`, yapılandırılan sağlayıcı adlarını gösterir; bu liste API erişiminin canlı olarak test edildiği anlamına gelmez.
+
+SearXNG birden fazla motoru kendi sunucusunda birleştirebilir. Kullanılan motorlar o sunucunun ayarlarına bağlıdır; JSON çıktı biçimi açık olmalıdır. Sunucu adresini yalnızca operatörün `.env` ayarı belirler. Rastgele bir herkese açık sunucu seçilmez, Docker veya sunucu otomatik kurulmaz. [SearXNG API rehberi](https://docs.searxng.org/dev/search_api.html).
+
+Hiçbir sağlayıcı yapılandırılmasa da verilen/önceden bilinen kaynak URL’leri, ihale toplama ve yerel resmî PDF araştırması çalışır. Etkin her arama API’si aynı sorgu için ayrı istek alır ve kendi hesabınızın planını kullanır. Tarayıcı desteği isteğe bağlıdır ve mevcut robots/erişim politikalarını korur. Arama özeti ve yapay zekâ cevabı, yüklenici veya iletişim kanıtı olarak alınmaz.
 
 Elle başlatılan EKAP araştırmasında yerel PDF eksik veya okunamıyorsa yapılandırılmış web araması kullanılır. Yerel PDF bir kazanan ya da ortak girişim kararı veriyorsa ek sonuç araması yapılmaz; verilen sonuç bağlantıları ayrıca kontrol edilir.
 

@@ -500,7 +500,7 @@ def test_ekap_without_local_pdf_uses_configured_award_search(service, monkeypatc
         def fetch(self, url):
             return replace(super().fetch(url), is_demo=False)
 
-    monkeypatch.setattr(system_bridge, "BraveSearchProvider", lambda _: Search())
+    monkeypatch.setattr(system_bridge, "build_search_provider", lambda _: Search())
     monkeypatch.setattr(system_bridge, "WebClient", lambda _: FixtureFetcher(ROOT / "data/demo"))
     service.demo = False
     service.settings = service.settings.model_copy(update={"brave_api_key": SecretStr("test")})
@@ -655,3 +655,49 @@ def test_resolved_winner_updates_contact_search_link(service, old_link):
     ]
     archived = dict(row, opportunity={**row["opportunity"], "status": "arsiv"})
     assert service.attach([archived])[0]["contact_search_url"] == row["contact_search_url"]
+
+
+def test_api_reports_multiple_configured_search_providers_without_secrets(service):
+    from pydantic import SecretStr
+
+    service.demo = False
+    service.settings = service.settings.model_copy(
+        update={
+            "brave_api_key": SecretStr("private-brave"),
+            "serper_api_key": SecretStr("private-serper"),
+        }
+    )
+    status = service.status()
+    assert status["search_configured"] is True
+    assert [provider["id"] for provider in status["search_providers"]] == ["brave", "serper"]
+    assert len(status["search_available_providers"]) == 4
+    assert "private" not in json.dumps(status)
+    service.demo = True
+    assert service.status()["search_providers"] == []
+
+
+def test_adding_search_provider_bypasses_old_manual_research_cache(service):
+    from pydantic import SecretStr
+
+    service.demo = False
+    path = ekap_bulletin.STORE / "BULTEN_19102026_YAPIM_SONUC.pdf"
+    make_award_pdf(path)
+    row = dict(
+        seeded()[0],
+        is_demo=False,
+        source_key="ekap",
+        tender_number="2026/123",
+        research_links={},
+        bulletin_reference={"filename": path.name},
+    )
+    with bulucu.connect() as conn:
+        bulucu.save_items(conn, [row])
+    row = next(r for r in bulucu.records() if r["id"] == row["id"])
+    request = ResearchRequest(id=row["id"])
+    service.request(row, request)
+    service.drain()
+    assert service.request(row, request) == "cached"
+    service.settings = service.settings.model_copy(
+        update={"tavily_api_key": SecretStr("private-tavily")}
+    )
+    assert service.request(row, request) == "queued"

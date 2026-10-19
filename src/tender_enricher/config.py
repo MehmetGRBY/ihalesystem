@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr
+from pydantic import Field, HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +20,36 @@ class Settings(BaseSettings):
     max_response_bytes: int = Field(default=2_000_000, ge=1024)
     browser_enabled: bool = False
     brave_api_key: SecretStr | None = None
+    serper_api_key: SecretStr | None = None
+    tavily_api_key: SecretStr | None = None
+    searxng_url: HttpUrl | None = None
+    search_providers: list[Literal["brave", "serper", "tavily", "searxng"]] = [
+        "brave",
+        "serper",
+        "tavily",
+        "searxng",
+    ]
     official_award_hosts: list[str] = ["ekap.kik.gov.tr", "kik.gov.tr"]
     registry_hosts: list[str] = ["ticaretsicil.gov.tr", "www.ticaretsicil.gov.tr"]
     user_agent: str = "TenderEnricher/0.1 (public-source research; local MVP)"
+
+    @field_validator("search_providers")
+    @classmethod
+    def unique_providers(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("Search providers must be unique")
+        return value
+
+    @field_validator("searxng_url", mode="before")
+    @classmethod
+    def empty_searxng_url(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("searxng_url")
+    @classmethod
+    def plain_searxng_url(cls, value: HttpUrl | None) -> HttpUrl | None:
+        if value:
+            parsed = urlsplit(str(value))
+            if parsed.username or parsed.password or parsed.query or parsed.fragment:
+                raise ValueError("SearXNG endpoint must not contain credentials, query or fragment")
+        return value

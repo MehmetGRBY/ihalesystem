@@ -10,6 +10,7 @@ from tender_enricher.collectors.parsing import (
     organizations,
     profile_from_values,
 )
+from tender_enricher.collectors.search.multi import search_issues
 from tender_enricher.config import Settings
 from tender_enricher.enrichment import provider_failure
 from tender_enricher.evidence import make_source, publisher_group
@@ -70,6 +71,7 @@ class CompanyWebsiteCollector:
                 urls.extend(self.search.search(f'"{winner.company_name}" iletişim telefon'))
             except Exception as error:
                 result.issues.append(provider_failure("search", "enrichment", error))
+            result.issues.extend(search_issues(self.search, "enrichment"))
         for url in list(dict.fromkeys(urls))[: self.settings.max_pages_per_tender]:
             try:
                 document = self.fetcher.fetch(url)

@@ -24,7 +24,11 @@ from tender_enricher.collectors.browser import BrowserClient
 from tender_enricher.collectors.company_website.website import CompanyWebsiteCollector
 from tender_enricher.collectors.demo import DemoFetcher
 from tender_enricher.collectors.ekap.award import PublicAwardCollector
-from tender_enricher.collectors.search.brave import BraveSearchProvider
+from tender_enricher.collectors.search.multi import (
+    LABELS,
+    build_search_provider,
+    configured_search_providers,
+)
 from tender_enricher.collectors.trade_registry.registry import PublicRegistryCollector
 from tender_enricher.collectors.web import WebClient
 from tender_enricher.config import Settings
@@ -358,7 +362,10 @@ class EnrichmentService:
         as_tender(row, request)  # Validate URL lists before persisting a job.
         input_hash = self.input_hash(row)
         options = request.model_dump(mode="json", exclude={"id", "force"})
-        fingerprint = canonical_hash([input_hash, options, local_only])
+        search_providers = (
+            configured_search_providers(self.settings) if not self.demo and not local_only else []
+        )
+        fingerprint = canonical_hash([input_hash, options, local_only, search_providers])
         with self._lock:
             old = self.job(row["id"])
             if old and old["state"] in {"queued", "running"}:
@@ -481,11 +488,7 @@ class EnrichmentService:
                 else:
                     web = WebClient(self.settings)
                     fetcher = BrowserClient(web) if self.settings.browser_enabled else web
-                    if (
-                        self.settings.brave_api_key
-                        and self.settings.brave_api_key.get_secret_value()
-                    ):
-                        search = BraveSearchProvider(self.settings)
+                    search = build_search_provider(self.settings)
                 web_awards = PublicAwardCollector(fetcher, self.settings, search)
                 if tender.award_urls:
                     winners.append(web_awards)
@@ -601,10 +604,15 @@ class EnrichmentService:
         counts: dict[str, int] = {}
         for row in self.jobs().values():
             counts[row["state"]] = counts.get(row["state"], 0) + 1
+        providers = configured_search_providers(self.settings) if not self.demo else []
         return {
             "counts": counts,
             "is_demo": self.demo,
-            "search_configured": bool(self.settings.brave_api_key),
+            "search_configured": bool(providers),
+            "search_providers": [{"id": name, "label": LABELS[name]} for name in providers],
+            "search_available_providers": [
+                {"id": name, "label": label} for name, label in LABELS.items()
+            ],
             "automatic_mode": "local_official_pdf_only",
         }
 

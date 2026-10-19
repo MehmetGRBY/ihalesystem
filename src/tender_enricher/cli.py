@@ -12,7 +12,7 @@ from tender_enricher.collectors.company_website.website import CompanyWebsiteCol
 from tender_enricher.collectors.contracts import PageFetcher
 from tender_enricher.collectors.demo import DemoFetcher
 from tender_enricher.collectors.ekap.award import PublicAwardCollector
-from tender_enricher.collectors.search.brave import BraveSearchProvider
+from tender_enricher.collectors.search.multi import MultiSearchProvider, build_search_provider
 from tender_enricher.collectors.trade_registry.registry import PublicRegistryCollector
 from tender_enricher.collectors.web import WebClient
 from tender_enricher.config import Settings
@@ -98,7 +98,7 @@ def execute(
         Path("data/outbox/demo-results.json") if demo else settings.output_path
     )
     fetcher: PageFetcher
-    search: BraveSearchProvider | None = None
+    search: MultiSearchProvider | None = None
     if demo:
         fetcher = DemoFetcher(root / "data/demo")
         settings = settings.model_copy(
@@ -110,8 +110,7 @@ def execute(
     else:
         web = WebClient(settings)
         fetcher = BrowserClient(web) if args.browser or settings.browser_enabled else web
-        if settings.brave_api_key and settings.brave_api_key.get_secret_value():
-            search = BraveSearchProvider(settings)
+        search = build_search_provider(settings)
     pipeline = Pipeline(
         [PublicAwardCollector(fetcher, settings, search)],
         [

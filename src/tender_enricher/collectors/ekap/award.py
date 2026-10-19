@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 
 from tender_enricher.collectors.contracts import PageFetcher
 from tender_enricher.collectors.parsing import labeled_values, profile_from_values
+from tender_enricher.collectors.search.multi import search_issues
 from tender_enricher.config import Settings
 from tender_enricher.enrichment import provider_failure
 from tender_enricher.evidence import make_evidence, make_source
@@ -42,6 +43,7 @@ class PublicAwardCollector:
                 )
             except Exception as error:
                 result.issues.append(provider_failure("search", "winner_collection", error))
+            result.issues.extend(search_issues(self.search, "winner_collection"))
         for url in list(dict.fromkeys(urls))[: self.settings.max_pages_per_tender]:
             try:
                 self._collect_url(url, tender, result)
