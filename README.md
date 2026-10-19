@@ -51,7 +51,29 @@ Birden fazla anahtar/sunucu tanımlandığında **hepsi aynı sorguya paralel ka
 
 Varsayılan seçim `TE_SEARCH_PROVIDERS=["brave","serper","tavily","searxng"]`. Yalnızca seçilen ve ayarı bulunan sağlayıcılar kullanılır; örneğin `["serper","tavily"]` Brave’i devre dışı bırakır. Yeni sağlayıcı eklenince elle araştırmanın eski önbelleği kullanılmaz. Panel ve `/api/status`, yapılandırılan sağlayıcı adlarını gösterir; bu liste API erişiminin canlı olarak test edildiği anlamına gelmez.
 
-SearXNG birden fazla motoru kendi sunucusunda birleştirebilir. Kullanılan motorlar o sunucunun ayarlarına bağlıdır; JSON çıktı biçimi açık olmalıdır. Sunucu adresini yalnızca operatörün `.env` ayarı belirler. Rastgele bir herkese açık sunucu seçilmez, Docker veya sunucu otomatik kurulmaz. [SearXNG API rehberi](https://docs.searxng.org/dev/search_api.html).
+SearXNG birden fazla motoru kendi sunucusunda birleştirir. `TE_SEARXNG_ENGINES` isteğe bağlı motor listesidir; boşsa sunucunun varsayılanları kullanılır. Motor listesi/adres değişince elle araştırmanın önbelleği yenilenir. Motorlardan biri hata verirse kalan sonuçlar işlenir ve hata kaynak notuna eklenir. Bütün motorlar erişim hatası verirse boş sonuç başarı sayılmaz. [SearXNG API rehberi](https://docs.searxng.org/dev/search_api.html).
+
+### API anahtarı olmadan yerel çoklu arama
+
+Kurulu Docker Desktop çalışırken proje klasöründe:
+
+```bash
+.venv/bin/python scripts/local_search.py start
+.venv/bin/python scripts/local_search.py check
+```
+
+Windows’ta Python yolu `.venv\Scripts\python.exe`. `start`, resmî ve sürümü sabitlenmiş SearXNG/Valkey görüntülerini başlatır; yerel bir rastgele sunucu sırrı üretir ve `.env` içine `http://127.0.0.1:8080` ile `["brave","duckduckgo","yahoo"]` motorlarını yazar. Mevcut API anahtarları korunur; başka SearXNG adresi varsa değiştirilmez. Docker kurulu değilse kurulum yönergesiyle durur. Rastgele herkese açık SearXNG sunucusu kullanılmaz. [Resmî container kurulum rehberi](https://docs.searxng.org/admin/installation-docker.html).
+
+Arama yalnızca bu bilgisayardan erişilir; Valkey dışarıya port açmaz. Yerel servis/önbellek `data/runtime/search/` ve Docker birimlerinde kalır, GitHub’a gönderilmez. `.env` ve sunucu sırrı da dışlanır. `Baslat.command` / `Baslat.cmd`, yalnızca bu yerel adres seçilmişse önce arama servisini hazırlar. Docker Desktop kapalıysa başlatmayı dener. Doğrudan `python app.py` kullanımında arama servisini önce yukarıdaki komutla başlatın.
+
+`check` gerçek bir genel sorgu gönderir ve en az iki motorun sonuç verdiğini denetler. Motorların erişilebilirliği sorguya ve o anki erişim sınırlamalarına bağlıdır; CAPTCHA veya erişim engeli aşılmaz. Motor adlarının panelde görünmesi tek başına canlı kontrol değildir.
+
+```bash
+.venv/bin/python scripts/local_search.py status
+.venv/bin/python scripts/local_search.py stop
+```
+
+`stop` yalnızca projeye ait iki container’ı durdurur; uygulamanın ihale verilerini silmez. Docker başka projeler için de çalışıyorsa onlar etkilenmez.
 
 Hiçbir sağlayıcı yapılandırılmasa da verilen/önceden bilinen kaynak URL’leri, ihale toplama ve yerel resmî PDF araştırması çalışır. Etkin her arama API’si aynı sorgu için ayrı istek alır ve kendi hesabınızın planını kullanır. Tarayıcı desteği isteğe bağlıdır ve mevcut robots/erişim politikalarını korur. Arama özeti ve yapay zekâ cevabı, yüklenici veya iletişim kanıtı olarak alınmaz.
 

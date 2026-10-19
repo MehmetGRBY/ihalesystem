@@ -329,3 +329,63 @@ def test_searxng_empty_value_and_local_operator_endpoint():
         str(Settings(_env_file=None, searxng_url="http://localhost:8080").searxng_url)
         == "http://localhost:8080/"
     )
+
+
+@pytest.mark.parametrize("all_failed", [False, True])
+def test_searxng_engine_selection_and_internal_failures_are_visible(settings, all_failed):
+    configured = keys(settings).model_copy(update={"searxng_engines": ["brave", "duckduckgo"]})
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert request.url.params["engines"] == "brave,duckduckgo"
+        return httpx.Response(
+            200,
+            json={
+                "results": [] if all_failed else [{"url": "https://company.example/"}],
+                "unresponsive_engines": [["brave", "private-error-details"]],
+            },
+        )
+
+    provider = SearxngSearchProvider(
+        configured,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=lambda _: None,
+    )
+    group = MultiSearchProvider({"searxng": provider})
+    try:
+        for _ in range(2):
+            if all_failed:
+                with pytest.raises(CollectionError):
+                    group.search("company")
+            else:
+                assert group.search("company") == ["https://company.example/"]
+            issues = group.take_issues("enrichment")
+            assert any(issue.provider == "searxng:brave" for issue in issues)
+            assert "private" not in str(issues)
+            assert group.take_issues("enrichment") == []
+        assert len(requests) == 2  # Partial failures must also be retried, not cached.
+    finally:
+        group.close()
+
+
+def test_empty_searxng_search_without_engine_errors_is_not_an_outage(settings):
+    provider = SearxngSearchProvider(
+        keys(settings),
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, json={"results": [], "unresponsive_engines": []})
+            )
+        ),
+        sleep=lambda _: None,
+    )
+    try:
+        assert provider.search("unique nonexistent company") == []
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize("engines", [["brave", "brave"], ["brave,google"], ["bad\nname"]])
+def test_searxng_engine_names_are_validated(engines):
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, searxng_engines=engines)

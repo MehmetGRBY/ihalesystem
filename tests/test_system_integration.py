@@ -701,3 +701,50 @@ def test_adding_search_provider_bypasses_old_manual_research_cache(service):
         update={"tavily_api_key": SecretStr("private-tavily")}
     )
     assert service.request(row, request) == "queued"
+
+
+def test_status_shows_search_engines_inside_searxng(service):
+    service.demo = False
+    service.settings = service.settings.model_copy(
+        update={
+            "searxng_url": "http://127.0.0.1:8080/",
+            "searxng_engines": ["brave", "duckduckgo", "yahoo"],
+        }
+    )
+    assert service.status()["search_providers"] == [
+        {"id": "searxng", "label": "SearXNG (Brave, DuckDuckGo, Yahoo)"}
+    ]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"searxng_engines": ["brave", "duckduckgo"]},
+        {"searxng_url": "http://127.0.0.1:8888/"},
+    ],
+)
+def test_changed_searxng_configuration_bypasses_manual_cache(service, monkeypatch, change):
+    service.demo = False
+    service.settings = service.settings.model_copy(
+        update={"searxng_url": "http://127.0.0.1:8080/", "searxng_engines": ["brave"]}
+    )
+    monkeypatch.setattr("system_bridge.build_search_provider", lambda _: None)
+    path = ekap_bulletin.STORE / "BULTEN_19102026_YAPIM_SONUC.pdf"
+    make_award_pdf(path)
+    row = dict(
+        seeded()[0],
+        is_demo=False,
+        source_key="ekap",
+        tender_number="2026/123",
+        research_links={},
+        bulletin_reference={"filename": path.name},
+    )
+    with bulucu.connect() as connection:
+        bulucu.save_items(connection, [row])
+    row = next(r for r in bulucu.records() if r["id"] == row["id"])
+    request = ResearchRequest(id=row["id"])
+    service.request(row, request)
+    service.drain()
+    assert service.request(row, request) == "cached"
+    service.settings = service.settings.model_copy(update=change)
+    assert service.request(row, request) == "queued"

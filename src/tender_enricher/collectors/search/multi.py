@@ -20,6 +20,17 @@ from tender_enricher.models import Issue
 from tender_enricher.ports import SearchProvider
 
 LABELS = {"brave": "Brave", "serper": "Google (Serper)", "tavily": "Tavily", "searxng": "SearXNG"}
+ENGINE_LABELS = {"brave": "Brave", "duckduckgo": "DuckDuckGo", "yahoo": "Yahoo"}
+
+
+def search_provider_label(settings: Settings, name: str) -> str:
+    label = LABELS[name]
+    if name == "searxng" and settings.searxng_engines:
+        engines = ", ".join(
+            ENGINE_LABELS.get(engine, engine) for engine in settings.searxng_engines
+        )
+        label += f" ({engines})"
+    return label
 
 
 class ManagedSearchProvider(SearchProvider, Protocol):
@@ -67,6 +78,7 @@ class MultiSearchProvider:
         self.providers = providers
         self._lock = threading.RLock()
         self._failures: list[str] = []
+        self._engine_failures: list[str] = []
         self._cache: OrderedDict[tuple[str, int], tuple[float, list[str]]] = OrderedDict()
 
     def search(self, query: str, limit: int = 5) -> list[str]:
@@ -76,6 +88,7 @@ class MultiSearchProvider:
         key = (query.strip(), limit)
         with self._lock:
             self._failures = []
+            self._engine_failures = []
             cached = self._cache.get(key)
             if cached and time.monotonic() - cached[0] < 600:
                 self._cache.move_to_end(key)
@@ -91,6 +104,9 @@ class MultiSearchProvider:
                         batches.append(task.result())
                     except Exception:
                         self._failures.append(name)
+                    provider = self.providers[name]
+                    if isinstance(provider, SearxngSearchProvider):
+                        self._engine_failures.extend(provider.failed_engines)
             if len(self._failures) == len(self.providers):
                 raise CollectionError("search_unavailable", "Configured search providers failed.")
             seen = set()
@@ -106,7 +122,7 @@ class MultiSearchProvider:
                         break
                 if len(urls) == limit:
                     break
-            if not self._failures:
+            if not self._failures and not self._engine_failures:
                 self._cache[key] = (time.monotonic(), list(urls))
                 self._cache.move_to_end(key)
                 while len(self._cache) > 128:
@@ -124,7 +140,17 @@ class MultiSearchProvider:
                 )
                 for name in self._failures
             ]
+            issues.extend(
+                Issue(
+                    stage=stage,
+                    code="search_engine_failed",
+                    provider=f"searxng:{name}",
+                    message=f"SearXNG: {ENGINE_LABELS.get(name, name)} aramasına erişilemedi.",
+                )
+                for name in dict.fromkeys(self._engine_failures)
+            )
             self._failures = []
+            self._engine_failures = []
             return issues
 
     def close(self) -> None:

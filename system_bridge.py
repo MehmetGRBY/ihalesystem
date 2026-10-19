@@ -28,6 +28,7 @@ from tender_enricher.collectors.search.multi import (
     LABELS,
     build_search_provider,
     configured_search_providers,
+    search_provider_label,
 )
 from tender_enricher.collectors.trade_registry.registry import PublicRegistryCollector
 from tender_enricher.collectors.web import WebClient
@@ -365,7 +366,12 @@ class EnrichmentService:
         search_providers = (
             configured_search_providers(self.settings) if not self.demo and not local_only else []
         )
-        fingerprint = canonical_hash([input_hash, options, local_only, search_providers])
+        search_config: dict[str, Any] = {"providers": search_providers}
+        if "searxng" in search_providers:
+            search_config.update(
+                url=str(self.settings.searxng_url), engines=self.settings.searxng_engines
+            )
+        fingerprint = canonical_hash([input_hash, options, local_only, search_config])
         with self._lock:
             old = self.job(row["id"])
             if old and old["state"] in {"queued", "running"}:
@@ -609,7 +615,10 @@ class EnrichmentService:
             "counts": counts,
             "is_demo": self.demo,
             "search_configured": bool(providers),
-            "search_providers": [{"id": name, "label": LABELS[name]} for name in providers],
+            "search_providers": [
+                {"id": name, "label": search_provider_label(self.settings, name)}
+                for name in providers
+            ],
             "search_available_providers": [
                 {"id": name, "label": label} for name, label in LABELS.items()
             ],

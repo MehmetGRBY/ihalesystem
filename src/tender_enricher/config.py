@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
     serper_api_key: SecretStr | None = None
     tavily_api_key: SecretStr | None = None
     searxng_url: HttpUrl | None = None
+    searxng_engines: list[str] = Field(default_factory=list, max_length=20)
     search_providers: list[Literal["brave", "serper", "tavily", "searxng"]] = [
         "brave",
         "serper",
@@ -38,6 +40,15 @@ class Settings(BaseSettings):
     def unique_providers(cls, value: list[str]) -> list[str]:
         if len(value) != len(set(value)):
             raise ValueError("Search providers must be unique")
+        return value
+
+    @field_validator("searxng_engines")
+    @classmethod
+    def valid_searxng_engines(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)) or any(
+            not re.fullmatch(r"[a-z0-9][a-z0-9_. -]{0,59}", name) for name in value
+        ):
+            raise ValueError("SearXNG engines must be unique, plain engine names")
         return value
 
     @field_validator("searxng_url", mode="before")

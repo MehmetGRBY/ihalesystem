@@ -1,0 +1,34 @@
+use_default_settings:
+  engines:
+    keep_only: [brave, duckduckgo, yahoo]
+
+general:
+  instance_name: IhaleSystem Yerel Arama
+  debug: false
+
+search:
+  default_lang: tr-TR
+  autocomplete: ''
+  formats: [html, json]
+
+server:
+  # Replaced with a random local secret by scripts/local_search.py.
+  secret_key: __SEARXNG_SECRET__
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+valkey:
+  url: valkey://valkey:6379/0
+
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 10.0
+
+engines:
+  - name: brave
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: yahoo
+    disabled: false
