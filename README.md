@@ -13,7 +13,16 @@ python -m pip install -e '.[dev]'
 python app.py
 ```
 
-Windows’ta sanal ortam: `.venv\Scripts\activate`. Kurulumdan sonra `Baslat.cmd`, Mac’te `Baslat.command` kullanılabilir. Panel: http://127.0.0.1:8765. Terminal açık kalmalıdır. Aynı çalışma verileriyle ikinci uygulama açılması kilitle engellenir.
+Windows’ta sanal ortam: `.venv\Scripts\activate`. Kurulumdan sonra `Baslat.cmd`, Mac’te `Baslat.command` kullanılabilir. Başlatıcı uygulamayı arka planda çalıştırır ve panel hazır olunca varsayılan tarayıcıda açar: http://127.0.0.1:8765. Uygulama zaten açıksa mevcut panel açılır; ikinci bir sunucu başlatılmaz. Terminali açık tutmak gerekmez.
+
+### Masaüstünden çift tıklayarak açma
+
+- **Mac:** `Masaustu_Kisayolu.command` dosyasına bir kez çift tıklayın. Masaüstünde **İhale Bulucu.app** oluşur.
+- **Windows:** `Masaustu_Kisayolu.cmd` dosyasına bir kez çift tıklayın. Masaüstünde **İhale Bulucu.lnk** oluşur; OneDrive'a yönlendirilmiş masaüstü de desteklenir.
+
+Bundan sonra masaüstündeki **İhale Bulucu** simgesine çift tıklamak yeterlidir. Kısayol kurucusu, Python 3.11+ kuruluysa eksik sanal ortamı ve proje bağımlılıklarını ilk çalıştırmada hazırlar; ilk kurulum internet gerektirebilir. Windows Python yükleyicisinde Python erişiminin etkin olması gerekir. Yerel çoklu arama seçilmişse kurulu Docker Desktop önce hazır edilir.
+
+Proje klasörünü taşırsanız kısayol kurucusunu yeni klasörden tekrar çalıştırın. Başlatma günlükleri `data/runtime/desktop-launcher.log` dosyasındadır; başlatılamazsa açıklama tarayıcıda gösterilir. Doğrudan `python app.py` komutu terminalde çalışmaya devam eder.
 
 Otomatik tarama, web araştırması ve yedeklemeyi kapatarak panel açmak:
 

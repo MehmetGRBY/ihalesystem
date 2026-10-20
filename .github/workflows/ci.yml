@@ -24,3 +24,16 @@ jobs:
       - run: mypy
       - run: node --check discovery/panel.js
       - run: tender-enricher schema && git diff --exit-code -- schemas
+  desktop:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: pytest tests/test_desktop_launchers.py

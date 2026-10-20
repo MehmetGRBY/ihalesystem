@@ -4,5 +4,4 @@ if [ ! -x .venv/bin/python ]; then
   printf '%s\n' 'Once kurulum yapin: python3 -m venv .venv' '.venv/bin/python -m pip install -e .'
   exit 1
 fi
-.venv/bin/python scripts/local_search.py ensure || exit $?
-exec .venv/bin/python app.py
+exec .venv/bin/python scripts/desktop_launcher.py
