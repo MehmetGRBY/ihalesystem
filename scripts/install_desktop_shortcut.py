@@ -81,27 +81,7 @@ def create_macos_shortcut(root: Path, desktop: Path) -> Path:
 
 def create_windows_shortcut(root: Path, desktop: Path | None = None) -> Path:
     # Pass paths as environment values, not interpolated PowerShell source.
-    script = """
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$desktop = if ($env:IHALE_SHORTCUT_DESKTOP) { $env:IHALE_SHORTCUT_DESKTOP } else {
-    [Environment]::GetFolderPath('Desktop')
-}
-$path = Join-Path $desktop 'İhale Bulucu.lnk'
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($path)
-if ((Test-Path $path) -and ($shortcut.WorkingDirectory -ne $env:IHALE_SHORTCUT_ROOT) -and
-    ($shortcut.Description -ne 'IhaleSystem masaustu baslaticisi')) {
-    throw 'Masaustunde ayni isimli baska bir kisayol var; korunuyor.'
-}
-$shortcut.TargetPath = Join-Path $env:IHALE_SHORTCUT_ROOT '.venv\\Scripts\\pythonw.exe'
-$shortcut.Arguments = $env:IHALE_SHORTCUT_ARGUMENTS
-$shortcut.WorkingDirectory = $env:IHALE_SHORTCUT_ROOT
-$shortcut.Description = 'IhaleSystem masaustu baslaticisi'
-$shortcut.WindowStyle = 7
-$shortcut.Save()
-[Console]::Write($path)
-"""
+    script = Path(__file__).with_name("windows_shortcut.ps1").read_text(encoding="utf-8")
     environment = {
         **os.environ,
         "IHALE_SHORTCUT_ROOT": str(root),

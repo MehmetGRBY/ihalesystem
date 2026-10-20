@@ -183,7 +183,7 @@ def test_installer_prepares_a_missing_environment_and_dependencies(tmp_path, mon
 @pytest.mark.skipif(sys.platform != "win32", reason="Native Windows COM shortcut roundtrip")
 def test_native_windows_shortcut_roundtrip(tmp_path):
     root = tmp_path / "İhale Projesi"
-    desktop = tmp_path / "OneDrive Desktop"
+    desktop = tmp_path / "Şirket OneDrive Desktop"
     (root / ".venv/Scripts").mkdir(parents=True)
     (root / ".venv/Scripts/pythonw.exe").touch()
     (root / "scripts").mkdir()
@@ -191,10 +191,13 @@ def test_native_windows_shortcut_roundtrip(tmp_path):
     desktop.mkdir()
     shortcut = installer.create_windows_shortcut(root, desktop)
     assert shortcut.is_file(), list(desktop.iterdir())
+    assert installer.create_windows_shortcut(root, desktop) == shortcut
     script = """
-$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:IHALE_TEST_LINK)
+$ErrorActionPreference = 'Stop'
+$folder = (New-Object -ComObject Shell.Application).NameSpace($env:IHALE_TEST_DESKTOP)
+$s = $folder.ParseName('İhale Bulucu.lnk').GetLink
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-@{target=$s.TargetPath; arguments=$s.Arguments; directory=$s.WorkingDirectory} | ConvertTo-Json
+@{target=$s.Path; arguments=$s.Arguments; directory=$s.WorkingDirectory} | ConvertTo-Json
 """
     result = subprocess.run(
         [
@@ -204,7 +207,7 @@ $s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:IHALE_TEST_LINK)
             "-EncodedCommand",
             base64.b64encode(script.encode("utf-16le")).decode("ascii"),
         ],
-        env={**os.environ, "IHALE_TEST_LINK": str(shortcut)},
+        env={**os.environ, "IHALE_TEST_DESKTOP": str(desktop)},
         capture_output=True,
         check=True,
         encoding="utf-8-sig",
