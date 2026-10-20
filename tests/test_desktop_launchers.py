@@ -190,7 +190,7 @@ def test_native_windows_shortcut_roundtrip(tmp_path):
     (root / "scripts/desktop_launcher.py").touch()
     desktop.mkdir()
     shortcut = installer.create_windows_shortcut(root, desktop)
-    assert shortcut.is_file()
+    assert shortcut.is_file(), list(desktop.iterdir())
     script = """
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:IHALE_TEST_LINK)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
