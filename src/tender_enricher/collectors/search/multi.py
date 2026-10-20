@@ -80,6 +80,14 @@ class MultiSearchProvider:
         self._failures: list[str] = []
         self._engine_failures: list[str] = []
         self._cache: OrderedDict[tuple[str, int], tuple[float, list[str]]] = OrderedDict()
+        self.observer: Callable[[str, str, int], None] | None = None
+
+    def _observe(self, name: str, status: str, count: int) -> None:
+        if self.observer:
+            try:
+                self.observer(name, status, count)
+            except Exception:
+                pass  # Monitoring failure must not discard collected search evidence.
 
     def search(self, query: str, limit: int = 5) -> list[str]:
         if limit <= 0 or not query.strip():
@@ -100,13 +108,28 @@ class MultiSearchProvider:
                     for name, provider in self.providers.items()
                 }
                 for name, task in tasks.items():
+                    failed = False
                     try:
-                        batches.append(task.result())
+                        batch = task.result()
+                        batches.append(batch)
+                        self._observe(name, "ok" if batch else "empty", len(batch))
                     except Exception:
+                        failed = True
                         self._failures.append(name)
+                        self._observe(name, "error", 0)
                     provider = self.providers[name]
                     if isinstance(provider, SearxngSearchProvider):
                         self._engine_failures.extend(provider.failed_engines)
+                        for engine in provider.settings.searxng_engines:
+                            count = provider.engine_counts.get(engine, 0)
+                            state = (
+                                "error"
+                                if failed or engine in provider.failed_engines
+                                else "ok"
+                                if count
+                                else "empty"
+                            )
+                            self._observe(f"searxng:{engine}", state, count)
             if len(self._failures) == len(self.providers):
                 raise CollectionError("search_unavailable", "Configured search providers failed.")
             seen = set()

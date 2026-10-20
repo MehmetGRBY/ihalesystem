@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     max_pages_per_tender: int = Field(default=12, ge=1, le=50)
     max_response_bytes: int = Field(default=2_000_000, ge=1024)
     browser_enabled: bool = False
+    research_batch_size: int = Field(default=5, ge=1, le=20)
+    research_interval_minutes: int = Field(default=60, ge=5, le=1440)
+    research_daily_limit: int = Field(default=20, ge=1, le=200)
+    research_refresh_days: int = Field(default=7, ge=1, le=90)
+    backup_interval_hours: int = Field(default=24, ge=1, le=168)
+    backup_keep: int = Field(default=7, ge=2, le=30)
     brave_api_key: SecretStr | None = None
     serper_api_key: SecretStr | None = None
     tavily_api_key: SecretStr | None = None

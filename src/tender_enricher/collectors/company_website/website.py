@@ -3,7 +3,8 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
-from tender_enricher.collectors.company_website.html_contacts import public_contacts
+from tender_enricher.addressing import address_supports_identity
+from tender_enricher.collectors.company_website.html_contacts import public_contacts, site_identity
 from tender_enricher.collectors.contracts import PageFetcher
 from tender_enricher.collectors.parsing import (
     labeled_values,
@@ -20,13 +21,14 @@ from tender_enricher.matching import match_company
 from tender_enricher.models import (
     Collection,
     CompanyCandidate,
+    CompanyField,
     CompanyProfile,
     Issue,
     NormalizedTender,
     Source,
     SourceType,
 )
-from tender_enricher.normalization import domain, text_key
+from tender_enricher.normalization import company_key, domain, text_key
 from tender_enricher.ports import SearchProvider
 
 
@@ -102,6 +104,83 @@ def parse_companies(body: str, source: Source) -> list[CompanyCandidate]:
     return candidates or public_contacts(soup, source)
 
 
+def link_contact_identity(
+    pages: list[tuple[Source, str, list[CompanyCandidate]]], winner: CompanyProfile
+) -> list[CompanyCandidate]:
+    """Bind a short-brand contact page to its directly linked, matching legal owner.
+
+    Both pages must publish the same detailed postal identity and brand. Evidence
+    remains on its actual page; same-site pages never count as independent publishers.
+    """
+    linked = []
+    for source, body, candidates in pages:
+        if source.source_type != SourceType.COMPANY_WEBSITE:
+            continue
+        brand = site_identity(BeautifulSoup(body, "lxml"))
+        links = identity_links(body, str(source.final_url))
+        owners: list[CompanyCandidate] = []
+        for legal_source, legal_body, legal_candidates in pages:
+            legal_brand = site_identity(BeautifulSoup(legal_body, "lxml"))
+            if (
+                legal_source.source_type != SourceType.COMPANY_WEBSITE
+                or str(legal_source.url) not in links
+                or domain(str(legal_source.final_url)) != domain(str(source.final_url))
+                or not brand
+                or not legal_brand
+                or text_key(brand[0]) != text_key(legal_brand[0])
+            ):
+                continue
+            owners.extend(
+                item
+                for item in legal_candidates
+                if any(
+                    proof.field == CompanyField.COMPANY_NAME
+                    and proof.locator.startswith("company-identity[")
+                    for proof in item.evidence
+                )
+            )
+        if len({company_key(item.company.company_name) for item in owners}) != 1:
+            continue
+        if not all(match_company(winner, item.company).accepted for item in owners):
+            continue
+        for candidate in candidates:
+            if (
+                match_company(winner, candidate.company).accepted
+                or text_key(candidate.company.company_name) != text_key(brand[0] if brand else "")
+                or set(company_key(candidate.company.company_name).split()) & {"as", "ltd"}
+                or not address_supports_identity(winner.address, candidate.company.address)
+                or not all(
+                    address_supports_identity(owner.company.address, candidate.company.address)
+                    for owner in owners
+                )
+            ):
+                continue
+            owner = owners[0]
+            bound = candidate.company.model_copy(
+                update={"company_name": owner.company.company_name}
+            )
+            if not match_company(owner.company, bound).accepted:
+                continue
+            linked.append(
+                CompanyCandidate(
+                    company=bound,
+                    evidence=[
+                        *[
+                            proof
+                            for proof in candidate.evidence
+                            if proof.field != CompanyField.COMPANY_NAME
+                        ],
+                        *[
+                            proof
+                            for proof in owner.evidence
+                            if proof.field == CompanyField.COMPANY_NAME
+                        ],
+                    ],
+                )
+            )
+    return linked
+
+
 class CompanyWebsiteCollector:
     name = "company_website"
 
@@ -125,6 +204,7 @@ class CompanyWebsiteCollector:
         visited: set[str] = set()
         followed: Counter[str] = Counter()
         identity_hosts: dict[str, str] = {}
+        pages: list[tuple[Source, str, list[CompanyCandidate]]] = []
         while pending and len(visited) < self.settings.max_pages_per_tender:
             url = pending.popleft()
             if url in visited:
@@ -165,6 +245,7 @@ class CompanyWebsiteCollector:
                 ):
                     source.source_type = SourceType.COMPANY_WEBSITE
                 result.sources.append(source)
+                pages.append((source, document.body, candidates))
                 result.candidates.extend(candidates)
                 if source.source_type == SourceType.COMPANY_WEBSITE and not any(
                     match_company(winner, item.company).accepted for item in candidates
@@ -191,4 +272,18 @@ class CompanyWebsiteCollector:
                 result.issues.append(provider_failure(self.name, "enrichment", error))
                 if isinstance(error, CollectionError) and error.code == "page_budget_exceeded":
                     break
+        bound = link_contact_identity(pages, winner)
+        result.candidates.extend(bound)
+        if bound:
+            result.issues.append(
+                Issue(
+                    stage="matching",
+                    code="linked_company_identity",
+                    provider=self.name,
+                    message=(
+                        "İletişim sayfası, bağlı künye/KVKK unvanı ve aynı posta adresiyle "
+                        "eşleştirildi; kaynak kanıtları korundu."
+                    ),
+                )
+            )
         return result

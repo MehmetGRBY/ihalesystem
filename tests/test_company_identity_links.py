@@ -110,7 +110,12 @@ def test_full_pipeline_uses_linked_legal_identity_and_keeps_single_source_contac
     assert result.winner.company_name == NAME
     assert result.winner.phone == "+902120000000"
     assert result.winner.address == FULL
-    assert result.winner.email is None  # No identity borrowing from the short-brand page.
+    assert result.winner.email == "info@atlas.example"
+    assert result.field_verification["email"].status == "single_source"
+    email = next(proof for proof in result.evidence if proof.field == "email")
+    source = next(page for page in result.sources if page.id == email.source_id)
+    assert str(source.final_url) == "https://atlas.example/contact"
+    assert any(issue.code == "linked_company_identity" for issue in result.issues)
     assert result.field_verification["phone"].status == "single_source"
     assert result.field_verification["address"].status == "verified"
     assert result.status == "partial"
@@ -147,3 +152,65 @@ def test_follow_up_identity_pages_share_existing_page_budget(tender, settings):
         record, CompanyProfile(company_name=NAME, address=FULL)
     )
     assert pages.visited == ["https://atlas.example/contact", "https://atlas.example/kvkk"]
+
+
+@pytest.mark.parametrize("change", ["address", "brand", "no_link", "different_owner"])
+def test_contact_identity_chain_requires_all_conditions(tender, settings, repository, change):
+    class ChangedPages(Pages):
+        def fetch(self, url):
+            document = super().fetch(url)
+            if url.endswith("/contact"):
+                body = document.body
+                if change == "address":
+                    body = body.replace("No:1/1A", "No:99")
+                elif change == "no_link":
+                    body = body.replace('<a href="/kvkk#policy">KVKK</a>', "").replace(
+                        '<a href="/about">Hakkımızda</a>', ""
+                    )
+                return Document(url, url, body)
+            if url.endswith(("/kvkk", "/about")):
+                body = document.body
+                if change == "brand":
+                    body = body.replace("AtlasAir", "OtherBrand")
+                if change == "different_owner":
+                    body = body.replace(NAME, "Başka Tıbbi Cihazlar Limited Şirketi")
+                return Document(url, url, body)
+            return document
+
+    pages = ChangedPages()
+    record = tender.model_copy(
+        update={
+            "award_urls": [HttpUrl("https://awards.demo.test/result")],
+            "company_urls": [HttpUrl("https://atlas.example/contact")],
+        }
+    )
+    result = Pipeline(
+        [PublicAwardCollector(pages, settings)],
+        [CompanyWebsiteCollector(pages, settings)],
+        repository,
+    ).process(record)
+    assert result.winner.email is None
+    assert not any(issue.code == "linked_company_identity" for issue in result.issues)
+
+
+def test_conflicting_linked_owners_do_not_borrow_contact(tender, settings, repository):
+    class ConflictingPages(Pages):
+        def fetch(self, url):
+            page = super().fetch(url)
+            if url.endswith("/about"):
+                return Document(url, url, page.body.replace(NAME, "Başka Tıbbi Limited Şirketi"))
+            return page
+
+    record = tender.model_copy(
+        update={
+            "award_urls": [HttpUrl("https://awards.demo.test/result")],
+            "company_urls": [HttpUrl("https://atlas.example/contact")],
+        }
+    )
+    pages = ConflictingPages()
+    result = Pipeline(
+        [PublicAwardCollector(pages, settings)],
+        [CompanyWebsiteCollector(pages, settings)],
+        repository,
+    ).process(record)
+    assert result.winner.email is None

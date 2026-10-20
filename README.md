@@ -15,7 +15,7 @@ python app.py
 
 Windows’ta sanal ortam: `.venv\Scripts\activate`. Kurulumdan sonra `Baslat.cmd`, Mac’te `Baslat.command` kullanılabilir. Panel: http://127.0.0.1:8765. Terminal açık kalmalıdır. Aynı çalışma verileriyle ikinci uygulama açılması kilitle engellenir.
 
-Canlı taramayı başlatmadan panel açmak:
+Otomatik tarama, web araştırması ve yedeklemeyi kapatarak panel açmak:
 
 ```bash
 python app.py --no-auto
@@ -32,7 +32,7 @@ Demo firmalar ve iletişimler sentetiktir; panelde ve JSON’da açıkça işare
 ## Birleşik çalışma akışı
 
 1. EFA motoru TOKİ, belediye/üniversite listeleri, EKAP resmî PDF bültenleri, Emlak Konut ve ÇED duyurularını tarar. İptal/düzeltme eşleştirmesi, tarih güncellemeleri ve proje güncelliği düzeltmeleri korunur.
-2. Tarama sonunda en fazla 10 uygun EKAP sonuç kaydı otomatik olarak yerel resmî PDF kanıtıyla işlenir. Bu otomatik adım internette ek arama veya ücretli API çağrısı yapmaz.
+2. Tarama sonunda en fazla 10 uygun EKAP sonuç kaydı otomatik olarak yerel resmî PDF kanıtıyla işlenir. Bu PDF adımına ek olarak, uygulama açıkken saatte 5 güncel/aktif sonuç kaydı webde araştırılır; günlük üst sınır 20 kayıttır. Telefon veya e-postası eksik kayıtlar önceliklenir. Bugünün kayıtları da değerlendirilir; tarihi belirsiz ve arşiv kayıtları otomatik web araştırmasına girmez. Aynı firma bir parti içinde tekrarlanmaz. Günlük sayaç ve kuyruk yeniden başlatmalarda korunur.
 3. PDF’deki ihale numarası ve yüklenici alanı TenderEnricher’a kanıt olur. JSON’daki `contractors` veya `official` etiketi tek başına kazanan kanıtı sayılmaz; arşivdeki PDF tekrar doğrulanır.
 4. Karttaki **Firma araştır** / **Araştırmayı yenile** düğmesi ek şirket araştırmasını başlatır. İstenirse firma sitesi ve sonuç ilanı bağlantısı girilebilir. Üstteki **Firmaları araştır** düğmesi en fazla 10 sonuç kaydını işler.
 5. Kazanan, telefon/e-posta/adres, eksikler, skorlar, çelişkiler ve kaynaklar aynı kartın **Firma araştırması** bölümünde görünür. İdare telefonu yüklenicinin telefonu yapılmaz; ihale şehri şirketin ili sayılmaz.
@@ -49,7 +49,7 @@ Demo firmalar ve iletişimler sentetiktir; panelde ve JSON’da açıkça işare
 
 Birden fazla anahtar/sunucu tanımlandığında **hepsi aynı sorguya paralel katılır**; sonuçlar sağlayıcılar arasında dönüşümlü alınır. Bir sağlayıcının hata vermesi diğerlerini durdurmaz. Tekrarlanan bağlantılar ve takip etiketleri ayıklanır; kısa süreli başarılı sorgu önbelleği gereksiz tekrarları azaltır. Sağlayıcı hataları araştırma kaynak notlarında görünür. Aynı bağlantıyı iki arama motorunun bulması bağımsız ikinci kanıt sayılmaz.
 
-Varsayılan seçim `TE_SEARCH_PROVIDERS=["brave","serper","tavily","searxng"]`. Yalnızca seçilen ve ayarı bulunan sağlayıcılar kullanılır; örneğin `["serper","tavily"]` Brave’i devre dışı bırakır. Yeni sağlayıcı eklenince elle araştırmanın eski önbelleği kullanılmaz. Panel ve `/api/status`, yapılandırılan sağlayıcı adlarını gösterir; bu liste API erişiminin canlı olarak test edildiği anlamına gelmez.
+Varsayılan seçim `TE_SEARCH_PROVIDERS=["brave","serper","tavily","searxng"]`. Yalnızca seçilen ve ayarı bulunan sağlayıcılar kullanılır; örneğin `["serper","tavily"]` Brave’i devre dışı bırakır. Yeni sağlayıcı eklenince elle araştırmanın eski önbelleği kullanılmaz. Panel ve `/api/status`, yapılandırılan sağlayıcıların yanında her sağlayıcı/motorun son denemesini, son başarılı yanıtını ve son hata zamanını gösterir. Henüz denenmeyen motorlar açıkça belirtilir; boş sonuç ile erişim hatası ayrıdır. Kayıtlar gerçek araştırma isteklerinden gelir; durum sorgulamak yeni arama başlatmaz. Sorgular ve anahtarlar bu sağlık kaydına yazılmaz.
 
 SearXNG birden fazla motoru kendi sunucusunda birleştirir. `TE_SEARXNG_ENGINES` isteğe bağlı motor listesidir; boşsa sunucunun varsayılanları kullanılır. Motor listesi/adres değişince elle araştırmanın önbelleği yenilenir. Motorlardan biri hata verirse kalan sonuçlar işlenir ve hata kaynak notuna eklenir. Bütün motorlar erişim hatası verirse boş sonuç başarı sayılmaz. [SearXNG API rehberi](https://docs.searxng.org/dev/search_api.html).
 
@@ -85,7 +85,7 @@ Firma sitelerinde Organization JSON-LD, microdata, hCard ve açık şirket kimli
 
 Bir sayfanın okunabilmesi şirketin ihale yüklenicisi olduğunu tek başına kanıtlamaz. Unvan ile ek kimlik/adres/site eşleşmesi kontrolleri korunur. Çelişkili telefonlar ayrı kanıt olarak kalır. Her site tasarımı desteklenmez; tanınmayan veya eşleşmeyen bilgiler kaynak notuyla belirtilir.
 
-İletişim sayfası yalnızca marka adı içeriyorsa, aynı sunucudaki gözlenen KVKK/künye/Hakkımızda bağlantılarından en fazla ikisi mevcut sayfa bütçesi içinde kontrol edilir. Görünür veri sorumlusu beyanındaki tam ticari unvan kaynak konumuyla okunur. Başka sunucuya yönlenen kimlik bağlantıları kullanılmaz; robots ve erişim kontrolleri her sayfada geçerlidir. Kısa marka sayfasındaki iletişim bilgileri tam unvan bulunan başka sayfaya taşınmaz.
+İletişim sayfası yalnızca marka adı içeriyorsa, aynı sunucudaki gözlenen KVKK/künye/Hakkımızda bağlantılarından en fazla ikisi mevcut sayfa bütçesi içinde kontrol edilir. Görünür veri sorumlusu beyanındaki tam ticari unvan kaynak konumuyla okunur. Başka sunucuya yönlenen kimlik bağlantıları kullanılmaz; robots ve erişim kontrolleri her sayfada geçerlidir. Kısa marka sayfasındaki iletişim, doğrudan bağlı kimlik sayfasıyla aynı marka ve ayrıntılı posta adresini yayımlıyorsa ve tek bir işletmeci unvanı resmî yükleniciyle eşleşiyorsa kabul edilebilir. Çelişkili işletmeci/unvan/adres zinciri reddedilir. E-posta/telefon kanıtı iletişim sayfasında, unvan kanıtı kimlik sayfasında kalır; aynı site bağımsız iki yayıncı sayılmaz.
 
 Adreslerde Sk./Sokak ve Cad./Caddesi gibi yazımlar, açık sokak adı, kapı numarası, ilçe ve il birlikte uyuşuyorsa karşılaştırılır. Farklı daire, kat, blok veya yayımlanmış mahalle bilgisi çelişkili kalır. Eksik mahalle alanı, iki farklı mahalleyi aynı adres yapmaz. Kaynak adres metinleri değiştirilmez; en güçlü kaynaktaki gösterim korunur. Aynı şirketin farklı sayfaları bağımsız ikinci iletişim kaynağı sayılmaz. Eski kayıtta bu adımı uygulamak için **Araştırmayı yenile** kullanılabilir.
 
@@ -106,6 +106,22 @@ python app.py --data-dir /tam/yol/calisma-verileri --no-auto
 ```
 
 `--import`, `--scan`, `--enrich` ve `--enrich-all` tek işlem yapıp çıkar. Araştırma kayıt kimliği kartın JSON çıktısındaki `id` alanıdır; ihale numarasından ayrıdır. Aynı numaralı farklı kaynak/kurumların kayıt ve araştırma geçmişleri karışmaz.
+
+## Otomasyon ve yedekleme
+
+Normal `python app.py` ve başlatıcılar otomasyonu açar. Bilgisayar ile uygulama açık olmalıdır; kapalıyken zamanlanmış iş çalışmaz. Kaynak taraması varsayılan 6 saatte bir, EKAP geçmişi eksikse 1 dakika arayla sürer. Sonraki tarama ve firma araştırması panelin **Otomatik takip, yedek ve arama motorları** bölümündedir. `--no-auto` ve demo bütün zamanlanmış işleri kapatır.
+
+`.env` ayarları: `TE_RESEARCH_BATCH_SIZE=5`, `TE_RESEARCH_INTERVAL_MINUTES=60`, `TE_RESEARCH_DAILY_LIMIT=20`, `TE_RESEARCH_REFRESH_DAYS=7`. Tamamlanmış web araştırması bu süre dolmadan otomatik tekrarlanmaz; yerel PDF sonucu web araştırmasına yükseltilebilir. Elle verilmiş kaynak bağlantıları korunur. Eski sonuç yenisi sıradayken gösterilmeye devam eder; ihale girdisi değişmişse eskisi gizlenir. Elle araştırma düğmeleri günlük otomatik kotadan bağımsızdır. Yapılandırılmış ücretli API varsa otomatik araştırma o planı da kullanır.
+
+Her 24 saatte iki yerel SQLite veritabanı ve resmî PDF'ler `data/backups/live/snapshot-.../` içine alınır; en son 7 doğrulanmış kopya saklanır (`TE_BACKUP_INTERVAL_HOURS`, `TE_BACKUP_KEEP`). Veritabanları SQLite backup API ile kopyalanır; uygulamanın tarama/araştırma yazıcıları bu sırada bekler. Her dosyanın SHA-256 özeti, SQLite bütünlüğü ve ilişkileri kontrol edilir; başarısız kopya önceki yedekleri silmez. Değişmeyen PDF'ler yalnızca önceki doğrulanmış yedekle diskte paylaşılır; canlı PDF'ye bağlı değildir. `.env`, anahtarlar, Docker sırları ve geçici dosyalar yedeklenmez.
+
+```bash
+python scripts/backup.py verify data/backups/live/snapshot-TARIH
+python scripts/backup.py restore data/backups/live/snapshot-TARIH /tam/yol/yeni-calisma-verileri
+python app.py --data-dir /tam/yol/yeni-calisma-verileri --no-auto
+```
+
+Geri yükleme yeni ve mevcut olmayan hedef ister; canlı verinin üzerine yazmaz. Yedekler GitHub'a gönderilmez. Bunlar aynı diskte yerel kopyalardır; disk arızası için ayrıca başka diske kopyalanmalıdır. Özel PostgreSQL/harici veritabanı kullanılıyorsa bu yerel yedekleyici onu kapsamaz ve panel başarısız yedek durumunu gösterir.
 
 ## Veriler ve API
 
@@ -128,7 +144,7 @@ Tek araştırma örneği:
 {"id":"kesif-kaydinin-24-haneli-kimligi","company_urls":[],"award_urls":[],"force":false}
 ```
 
-Boş `{}` istek en fazla 10 sonuç kaydını sıraya alır. URL veya `force` seçeneği verilirse `id` zorunludur. Birleşik çıktı sürümü **2.0**; mevcut keşif alanları korunur, her kayda `enrichment` eklenir. Tam kanıtlar `enrichment.result` içindedir. Kısa panel çıktısı uzun ilan/kanıt metinlerini çıkarır. Araştırma tamamlanınca keşif `revision`/`updated_at` güncellenir; zaman damgaları aynı saniyedeki değişiklikleri ayırmak için mikrosaniye içerir. Sadece geçen saate bağlı ihale durumu için tüketiciler tam listeyi yeniden değerlendirmelidir. Kaynak bağlantısı/ihale değişince eski araştırma `stale` olur ve güncel sonuç gibi gösterilmez.
+Boş `{}` istek en fazla 10 sonuç kaydını sıraya alır. URL veya `force` seçeneği verilirse `id` zorunludur. Birleşik çıktı sürümü **2.0**; mevcut keşif alanları korunur, her kayda `enrichment` eklenir. Tam kanıtlar `enrichment.result` içindedir. Kısa panel çıktısı uzun ilan/kanıt metinlerini çıkarır; alanların doğrulama durumunu korur. Kartta telefon/e-posta/site/adres için **Tek kaynak**, **Doğrulandı**, **Çelişkili** veya **Eksik** etiketi görünür. Araştırma tamamlanınca keşif `revision`/`updated_at` güncellenir; zaman damgaları aynı saniyedeki değişiklikleri ayırmak için mikrosaniye içerir. Sadece geçen saate bağlı ihale durumu için tüketiciler tam listeyi yeniden değerlendirmelidir. Kaynak bağlantısı/ihale değişince eski araştırma `stale` olur ve güncel sonuç gibi gösterilmez.
 
 ## Geliştirme
 

@@ -20,12 +20,15 @@ import ekap_bulletin
 from pdf_text import read_pdf
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
+from system_state import StateStore
 from tender_enricher.collectors.browser import BrowserClient
 from tender_enricher.collectors.company_website.website import CompanyWebsiteCollector
 from tender_enricher.collectors.demo import DemoFetcher
 from tender_enricher.collectors.ekap.award import PublicAwardCollector
 from tender_enricher.collectors.search.multi import (
+    ENGINE_LABELS,
     LABELS,
+    MultiSearchProvider,
     build_search_provider,
     configured_search_providers,
     search_provider_label,
@@ -273,6 +276,8 @@ class EnrichmentService:
         self.root, self.settings, self.demo = root, settings, demo
         self._lock = threading.RLock()
         self._exports = threading.Lock()
+        self.processing_lock = threading.RLock()
+        self.state = StateStore(bulucu.DB)
         self._queue: queue.Queue[str | None] = queue.Queue()
         self._thread: threading.Thread | None = None
         self.engine = make_engine(settings.database_url)
@@ -286,6 +291,8 @@ class EnrichmentService:
                 id TEXT PRIMARY KEY, input_hash TEXT NOT NULL, fingerprint TEXT NOT NULL,
                 state TEXT NOT NULL, options TEXT NOT NULL, local_only INTEGER NOT NULL,
                 requested_at TEXT NOT NULL, finished_at TEXT, payload TEXT, error TEXT)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS automatic_research_runs (
+                day TEXT NOT NULL, id TEXT NOT NULL, requested_at TEXT NOT NULL)""")
             conn.execute("UPDATE enrichment_jobs SET state='queued' WHERE state='running'")
             pending = conn.execute(
                 "SELECT id FROM enrichment_jobs WHERE state='queued' ORDER BY requested_at"
@@ -377,13 +384,14 @@ class EnrichmentService:
             if old and old["state"] in {"queued", "running"}:
                 return old["state"]
             if old and old["input_hash"] == input_hash and old["state"] == "completed":
-                if automatic:
+                if automatic and local_only:
                     return "cached"
+                refresh_hours = self.settings.research_refresh_days * 24 if automatic else 24
                 if old["fingerprint"] == fingerprint and not request.force:
                     finished = old.get("finished_at")
                     if finished and datetime.now(UTC) - datetime.fromisoformat(
                         finished
-                    ) < timedelta(hours=24):
+                    ) < timedelta(hours=refresh_hours):
                         return "cached"
             if automatic and old and old["state"] == "failed" and old.get("finished_at"):
                 if datetime.now(UTC) - datetime.fromisoformat(old["finished_at"]) < timedelta(
@@ -393,13 +401,26 @@ class EnrichmentService:
             if self._queue.qsize() >= 100:
                 raise ValueError("Araştırma kuyruğu dolu; mevcut işlerin bitmesini bekleyin.")
             with bulucu.connect() as conn:
+                if automatic and not local_only:
+                    day = datetime.now(UTC).astimezone(bulucu.TR).date().isoformat()
+                    used = conn.execute(
+                        "SELECT COUNT(*) FROM automatic_research_runs WHERE day=?", (day,)
+                    ).fetchone()[0]
+                    if used >= self.settings.research_daily_limit:
+                        return "limited"
+                    conn.execute(
+                        "INSERT INTO automatic_research_runs VALUES (?,?,?)",
+                        (day, row["id"], datetime.now(UTC).isoformat()),
+                    )
                 conn.execute(
                     """INSERT INTO enrichment_jobs
                     (id,input_hash,fingerprint,state,options,local_only,requested_at)
                     VALUES (?,?,?,'queued',?,?,?) ON CONFLICT(id) DO UPDATE SET
                     input_hash=excluded.input_hash,fingerprint=excluded.fingerprint,state='queued',
                     options=excluded.options,local_only=excluded.local_only,
-                    requested_at=excluded.requested_at,finished_at=NULL,payload=NULL,error=NULL""",
+                    requested_at=excluded.requested_at,finished_at=NULL,
+                    payload=CASE WHEN input_hash=excluded.input_hash THEN payload ELSE NULL END,
+                    error=NULL""",
                     (
                         row["id"],
                         input_hash,
@@ -442,6 +463,76 @@ class EnrichmentService:
                 break
         return queued
 
+    def request_web_batch(self, rows: list[Record]) -> int:
+        """Prioritize fresh, actionable results; reserve a persistent daily budget."""
+        if self.demo or not configured_search_providers(self.settings):
+            return 0
+        from source_adapters import parse_date
+
+        now = datetime.now(UTC)
+        day = now.astimezone(bulucu.TR).date().isoformat()
+        jobs = self.jobs()
+        candidates = []
+        for row in rows:
+            if row.get("stage") != "sonuc" or eligibility(row):
+                continue
+            if row.get("opportunity", {}).get("status") == "arsiv":
+                continue
+            published = parse_date(row.get("published_date_raw"))[0]
+            if (
+                not published
+                or not 0
+                <= (
+                    now.astimezone(bulucu.TR).date() - datetime.fromisoformat(published).date()
+                ).days
+                <= 90
+            ):
+                continue
+            job = jobs.get(row["id"], {})
+            if job.get("state") in {"queued", "running"}:
+                continue
+            payload = json.loads(job["payload"]) if job.get("payload") else {}
+            winner = payload.get("winner") or {}
+            if (
+                job.get("input_hash") == self.input_hash(row)
+                and winner.get("phone")
+                and winner.get("email")
+            ):
+                continue
+            candidates.append((row, published, job))
+        candidates.sort(
+            key=lambda item: (item[0].get("opportunity", {}).get("priority", 0), item[1]),
+            reverse=True,
+        )
+        queued = 0
+        companies: set[str] = set()
+        with self._lock:
+            with bulucu.connect() as conn:
+                used = conn.execute(
+                    "SELECT COUNT(*) FROM automatic_research_runs WHERE day=?", (day,)
+                ).fetchone()[0]
+            limit = min(
+                self.settings.research_batch_size, self.settings.research_daily_limit - used
+            )
+            for row, _, job in candidates:
+                if queued >= limit or self._queue.qsize() >= 100:
+                    break
+                company = company_key(
+                    ";".join(c.get("name", "") for c in row.get("contractors", []))
+                )
+                if company and company in companies:
+                    continue
+                options = json.loads(job["options"]) if job.get("options") else {}
+                request = ResearchRequest.model_validate({**options, "id": row["id"]})
+                try:
+                    state = self.request(row, request, automatic=True)
+                except ValueError:
+                    continue
+                if state == "queued":
+                    queued += 1
+                    companies.add(company)
+        return queued
+
     def _worker(self) -> None:
         while True:
             ident = self._queue.get()
@@ -468,6 +559,10 @@ class EnrichmentService:
         return processed
 
     def process(self, ident: str) -> None:
+        with self.processing_lock:
+            self._process(ident)
+
+    def _process(self, ident: str) -> None:
         job = self.job(ident)
         if job is None:
             return
@@ -495,6 +590,8 @@ class EnrichmentService:
                     web = WebClient(self.settings)
                     fetcher = BrowserClient(web) if self.settings.browser_enabled else web
                     search = build_search_provider(self.settings)
+                    if isinstance(search, MultiSearchProvider):
+                        search.observer = self.state.search_observation
                 web_awards = PublicAwardCollector(fetcher, self.settings, search)
                 if tender.award_urls:
                     winners.append(web_awards)
@@ -569,7 +666,10 @@ class EnrichmentService:
                     result = json.loads(job["payload"])
                     if compact:
                         result.pop("evidence", None)
-                        result.pop("field_verification", None)
+                        result["field_verification"] = {
+                            key: {"status": value["status"]}
+                            for key, value in result.get("field_verification", {}).items()
+                        }
                     info["result"] = result
                     winner = result.get("winner")
                     opportunity = item.get("opportunity") or {}
@@ -611,6 +711,20 @@ class EnrichmentService:
         for row in self.jobs().values():
             counts[row["state"]] = counts.get(row["state"], 0) + 1
         providers = configured_search_providers(self.settings) if not self.demo else []
+        health = self.state.get("search_health")
+        engine_ids = [
+            *providers,
+            *(
+                [f"searxng:{name}" for name in self.settings.searxng_engines]
+                if "searxng" in providers
+                else []
+            ),
+        ]
+        day = datetime.now(UTC).astimezone(bulucu.TR).date().isoformat()
+        with bulucu.connect() as conn:
+            used = conn.execute(
+                "SELECT COUNT(*) FROM automatic_research_runs WHERE day=?", (day,)
+            ).fetchone()[0]
         return {
             "counts": counts,
             "is_demo": self.demo,
@@ -622,7 +736,19 @@ class EnrichmentService:
             "search_available_providers": [
                 {"id": name, "label": label} for name, label in LABELS.items()
             ],
-            "automatic_mode": "local_official_pdf_only",
+            "automatic_mode": "bounded_web_and_official_pdf",
+            "automatic_daily_used": used,
+            "automatic_daily_limit": self.settings.research_daily_limit,
+            "search_health": [
+                {
+                    "id": name,
+                    "label": (ENGINE_LABELS.get(name.split(":", 1)[1], name) + " (SearXNG)")
+                    if ":" in name
+                    else LABELS[name],
+                    **health.get(name, {"status": "unknown"}),
+                }
+                for name in engine_ids
+            ],
         }
 
     def snapshot(self, *, compact: bool = False, since: str | None = None) -> Record:

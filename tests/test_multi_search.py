@@ -389,3 +389,42 @@ def test_empty_searxng_search_without_engine_errors_is_not_an_outage(settings):
 def test_searxng_engine_names_are_validated(engines):
     with pytest.raises(ValidationError):
         Settings(_env_file=None, searxng_engines=engines)
+
+
+def test_observations_include_engine_counts_failures_and_no_cached_recheck(settings):
+    import httpx
+
+    from tender_enricher.collectors.search.multi import MultiSearchProvider
+    from tender_enricher.collectors.search.searxng import SearxngSearchProvider
+
+    configured = settings.model_copy(
+        update={
+            "searxng_url": "http://localhost:8080",
+            "searxng_engines": ["brave", "duckduckgo", "yahoo"],
+        }
+    )
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "results": [{"url": "https://atlas.example", "engines": ["brave", "yahoo"]}],
+                "unresponsive_engines": [["duckduckgo", "timeout"]],
+            },
+        )
+    )
+    provider = SearxngSearchProvider(
+        configured, client=httpx.Client(transport=transport), sleep=lambda _: None
+    )
+    search = MultiSearchProvider({"searxng": provider})
+    observations = []
+    search.observer = lambda *event: observations.append(event)
+    try:
+        assert search.search("Atlas")
+        assert ("searxng:brave", "ok", 1) in observations
+        assert ("searxng:yahoo", "ok", 1) in observations
+        assert ("searxng:duckduckgo", "error", 0) in observations
+        # Partial searches are retried rather than being hidden by the cache.
+        assert search.search("Atlas")
+        assert observations.count(("searxng:brave", "ok", 1)) == 2
+    finally:
+        search.close()

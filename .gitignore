@@ -22,5 +22,6 @@ build/
 dist/
 .DS_Store
 data/runtime/
+data/backups/
 data/ihalesystem.json
 *.log

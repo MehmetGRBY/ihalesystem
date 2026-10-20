@@ -6,7 +6,6 @@ import json
 import re
 import shutil
 import sys
-import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Literal
@@ -24,6 +23,7 @@ import ekap_bulletin  # noqa: E402
 import project_sources  # noqa: E402
 
 from system_bridge import EnrichmentService, ResearchRequest  # noqa: E402
+from system_operations import Operations  # noqa: E402
 from tender_enricher.config import Settings  # noqa: E402
 
 DISCOVERY_SCAN = bulucu.scan
@@ -220,14 +220,21 @@ def seed_demo() -> list[dict[str, Any]]:
     return bulucu.records()
 
 
-def handler_for(service: EnrichmentService) -> type[bulucu.Handler]:
+def handler_for(
+    service: EnrichmentService, operations: Operations | None = None
+) -> type[bulucu.Handler]:
     class Handler(bulucu.Handler):
         def do_GET(self) -> None:
             path = urlsplit(self.path)
             query = parse_qs(path.query)
             if path.path == "/api/status":
                 self.send(
-                    {**bulucu.status(), "enrichment": service.status(), "is_demo": service.demo}
+                    {
+                        **bulucu.status(),
+                        "enrichment": service.status(),
+                        "is_demo": service.demo,
+                        "operations": operations.status() if operations else {"enabled": False},
+                    }
                 )
             elif path.path == "/favicon.ico":
                 self.send(b"", 204, content_type="image/x-icon")
@@ -364,6 +371,7 @@ def run(args: argparse.Namespace, runtime: Path) -> int:
         )
     commands_only = args.scan or args.enrich or args.enrich_all or args.import_path
     service = EnrichmentService(ROOT, settings, demo=args.demo, start_worker=not commands_only)
+    operations = Operations(service, runtime, enabled=not args.no_auto and not commands_only)
     try:
         scan_failed = False
         if args.import_path:
@@ -390,9 +398,8 @@ def run(args: argparse.Namespace, runtime: Path) -> int:
             service.export_snapshot()
             failed = any((service.job(ident) or {}).get("state") == "failed" for ident in processed)
             return 1 if scan_failed or failed else 0
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(service))
-        if not args.no_auto and not args.demo:
-            threading.Thread(target=bulucu.schedule, daemon=True).start()
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(service, operations))
+        operations.start()
         print(f"IhaleSystem: http://127.0.0.1:{server.server_port} (Ctrl+C ile durdur)", flush=True)
         try:
             server.serve_forever()
@@ -402,6 +409,7 @@ def run(args: argparse.Namespace, runtime: Path) -> int:
             server.server_close()
         return 0
     finally:
+        operations.close()
         service.close()
 
 

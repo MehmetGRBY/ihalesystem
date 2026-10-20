@@ -138,7 +138,7 @@ def test_full_export_has_evidence_compact_does_not(service):
     service.drain()
     compact = service.attach([row], compact=True)[0]["enrichment"]["result"]
     assert "evidence" not in compact
-    assert "field_verification" not in compact
+    assert compact["field_verification"]["phone"] == {"status": "verified"}
     full = service.attach([row])[0]["enrichment"]["result"]
     assert full["evidence"] and full["field_verification"]
 
