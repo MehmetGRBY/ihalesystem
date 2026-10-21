@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit, parse_qs
 import source_adapters as adapters
 import opportunities
+from efa_scope import match_work
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -35,7 +36,7 @@ def normalize(value):
 
 def classify(title):
     text = normalize(title)
-    direct = [w for w in ["klima", "iklimlendirme", "havalandirma", "isitma", "sogutma", "mekanik tesisat", "vrf", "vrv", "chiller", "isi pompasi", "kazan", "boyler", "fan coil", "fancoil", "kondenser", "konderser", "kondanser"] if re.search(r'\b' + re.escape(w) + (r'\b' if w == 'kazan' else r'(?:lar\w*|ler\w*|nin|nın|in|i)?\b'), text)]
+    direct = match_work(title)
     if direct:
         return "dogrudan", direct
     buildings = [w for w in ["hastane", "okul", "derslik", "otel", "bina", "konut", "is yeri", "isyeri", "saglik merkezi", "sosyal tesis", "yurt", "ticaret merkezi", "egitim yapilari", "yerleske", "lise", "konukevi"] if w in text]

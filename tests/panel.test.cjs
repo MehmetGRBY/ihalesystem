@@ -4,6 +4,7 @@ const ui = require("../discovery/panel-data.js");
 const rows = [
   {
     id: "a",
+    efa_scope: { matched: true, categories: ["isitma"] },
     title: "İstanbul Isıtma Tesisatı",
     city: "İstanbul",
     source: "EKAP",
@@ -27,6 +28,7 @@ const rows = [
   },
   {
     id: "b",
+    efa_scope: { matched: true, categories: ["mekanik"] },
     title: "Hastane mekanik tesisatı",
     city: "Van",
     source: "TOKİ",
@@ -39,6 +41,7 @@ const rows = [
   },
   {
     id: "c",
+    efa_scope: { matched: true, categories: ["klima"] },
     title: "İptal edilmiş iş",
     source: "EKAP",
     relevance: "dogrudan",
@@ -48,6 +51,7 @@ const rows = [
   },
   {
     id: "d",
+    efa_scope: { matched: true, categories: ["havalandirma"] },
     title: "Tarihsiz okul havalandırması",
     source: "EKAP",
     relevance: "dogrudan",
@@ -337,4 +341,75 @@ test("contact actions accept ordinary phone/email and reject injected schemes, q
     assert.equal(ui.contactHref("email", value), null);
   assert.equal(ui.contactHref("website", "javascript:alert(1)"), null);
   assert.equal(ui.contactHref("address", "https://firma.test"), null);
+});
+
+test("all views and cleared filters remain EFA-only; generic and legacy false positives stay out", () => {
+  const unrelated = {
+    ...rows[1],
+    id: "unrelated",
+    relevance: "dogrudan",
+    efa_scope: { matched: false, categories: [] },
+  };
+  const unchecked = { ...rows[0], id: "unchecked", efa_scope: undefined };
+  for (const view of ["opportunities", "research"]) {
+    const result = ui.filterRows([...rows, unrelated, unchecked], {}, view);
+    assert.ok(
+      !result.some((row) => ["unrelated", "unchecked"].includes(row.id)),
+    );
+  }
+  assert.deepEqual(
+    ui.filterRows(rows, { kind: "mekanik" }).map((row) => row.id),
+    ["b"],
+  );
+  assert.equal(ui.scopeText(rows[0]), "Isıtma");
+});
+
+test("actual tender lifecycle stays distinct from sales follow-up and research status", () => {
+  assert.equal(
+    ui.tenderStatus({ ...rows[0], stage: "sonuc", freshness: "kapali" }).label,
+    "Sonuçlandı",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "iptal", freshness: "yaklasan" }).label,
+    "İptal edildi",
+  );
+  assert.equal(ui.tenderStatus({ stage: "kapandi" }).label, "Kapalı");
+  assert.equal(
+    ui.tenderStatus({ stage: "degerlendirme" }).label,
+    "Değerlendirmede",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "ilan", freshness: "yaklasan" }).label,
+    "Teklif bekleniyor",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "ilan", freshness: "tarih_gecmis" }).label,
+    "Teklif tarihi geçti",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "duzeltme", freshness: "yaklasan" }).label,
+    "Düzeltme yayımlandı",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "ilan", freshness: "tarih_belirsiz" }).label,
+    "Tarih doğrulanmalı",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "proje", source_status: "Devam eden proje" })
+      .label,
+    "Proje devam ediyor",
+  );
+  assert.equal(
+    ui.tenderStatus({
+      stage: "proje",
+      source_status: "Devam eden proje",
+      source_presence: "missing",
+    }).label,
+    "Proje durumu belirsiz",
+  );
+  assert.equal(
+    ui.tenderStatus({ stage: "proje", source_status: "Hemen teslim proje" })
+      .label,
+    "Teslime hazır proje",
+  );
 });

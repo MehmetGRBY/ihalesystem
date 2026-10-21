@@ -6,7 +6,7 @@ import argparse
 ROOT = Path(__file__).resolve().parent
 FILES = ['Baslat.cmd', 'README.md', 'JSON-SOZLESMESI.md', 'test_transfer.py', 'ekap_adapter.py', 'ekap_bulletin.py', 'opportunities.py', 'project_sources.py', 'test_opportunities.py', 'test_bulletin.py', 'test_ekap.py', 'requirements.txt', 'config.json', 'bulucu.py', 'source_adapters.py',
          'panel.html', 'panel.js', 'panel-data.js', 'panel.css', 'test_bulucu.py', 'test_adapters.py', 'paketle.py', '.gitignore']
-FILES += ['network.py', 'pdf_text.py', 'company_contacts.py', 'test_reliability.py', 'test_priority_fixes.py']
+FILES += ['efa_scope.py', 'network.py', 'pdf_text.py', 'company_contacts.py', 'test_reliability.py', 'test_priority_fixes.py']
 parser = argparse.ArgumentParser()
 parser.add_argument('--include-pdfs', action='store_true')
 args = parser.parse_args()

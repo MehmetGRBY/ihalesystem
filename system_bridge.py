@@ -94,6 +94,8 @@ def eligibility(row: Record, *, demo: bool = False) -> str | None:
         return "Firma araştırması için geçerli ihale numarası gerekli."
     if not row.get("authority"):
         return "Firma araştırması için idare bilgisi kaynakta tamamlanmalı."
+    if not demo and row.get("efa_scope", {}).get("matched") is False:
+        return "EFA iş alanıyla ilgili açık kapsam bulunamadı; firma araştırmasına alınmaz."
     return None
 
 

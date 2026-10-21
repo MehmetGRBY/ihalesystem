@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 from source_adapters import TR, parse_date
 from source_adapters import normalize
+from efa_scope import assess, LABELS
 
 
 def enrich(item, current=None):
@@ -12,9 +13,13 @@ def enrich(item, current=None):
     contractors = list(item.get('contractors') or [])
     item['contacts'] = contacts
     item['contractors'] = contractors
-    direct = item.get('relevance') == 'dogrudan'
-    title_match = item.get('match_basis', 'title')
-    reason = ('İş kapsamında klima/ısıtma-soğutma ifadesi var; teknik kapsam doğrulanmalı.' if title_match == 'scope' else 'Başlık iklimlendirme işine işaret ediyor; kapsam doğrulanmalı.') if direct else 'Bina/yatırım projesinde HVAC ihtiyacı olabilir; mekanik kapsam henüz doğrulanmadı.'
+    item['efa_scope'] = assess(item)
+    direct = item['efa_scope']['matched']
+    reason = 'EFA iş alanıyla ilgili açık kapsam henüz bulunamadı.'
+    if direct:
+        areas = ', '.join(LABELS[key] for key in item['efa_scope']['categories'])
+        basis = 'iş kapsamında' if item['efa_scope']['basis']=='scope' else 'başlıkta'
+        reason = f"{areas} işi {basis} belirtiliyor; teknik şartname doğrulanmalı."
     stage = item.get('stage')
     published, _ = parse_date(item.get('published_date_raw'))
     age = (current - datetime.fromisoformat(published)).days if published else None

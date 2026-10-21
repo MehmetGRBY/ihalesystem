@@ -34,8 +34,10 @@ kaynak listesinde bulunabilir.
 Tüketici id ve revision ile tekrarları yönetebilir; `since` parametresi
 saat dilimli ISO tarih alır ve updated_at bu tarihten büyük kayıtları döndürür.
 Kapalı, iptal veya tarihi geçmiş kayıtlar da arşivde kalır. freshness alanını
-kullanarak seçim yapılmalıdır. HVAC eşleşmesi başlığa dayanır; teknik
-şartnamede ilgili iş bulunacağının garantisi değildir.
+kullanarak seçim yapılmalıdır. `efa_scope` her okumada güncel kapsam politikasından
+türetilir: `matched`, `categories` (klima, havalandirma, isitma, sogutma, mekanik),
+`basis` (title/scope/demo), `evidence`, `policy_version`. Panel yalnızca matched=true
+kayıtları gösterir; başlık/iş kapsamı kanıtı teknik şartname doğrulaması değildir.
 
 ## Satış takip alanları
 

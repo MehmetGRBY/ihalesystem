@@ -117,8 +117,12 @@ Varsayılan küçük pakette PDF dosyaları bulunmaz; announcement_text JSON iç
 Başlığın yanında yalnızca işin niteliği/kapsamı alanında HVAC eşleşmesi aranır.
 Standart yeterlik ve benzer iş maddelerindeki klima kelimeleri kapsam eşleşmesi
 sayılmaz. Teknik şartname ayrıca indirilip incelenmez. Salt yıkım, çatı, araç,
-gıda veya saha işleri gibi belirgin ilgisiz işler süzülür; belirsiz bina işleri
-potansiyel olarak kalabilir.
+gıda veya saha işleri gibi belirgin ilgisiz işler süzülür. Geniş keşif geçmişinde
+belirsiz bina işleri saklanabilir; panelde yalnızca `efa_scope.matched=true` olan,
+başlıkta veya iş kapsamında EFA alanını açıkça belirten kayıtlar gösterilir.
+Çim/kök havalandırma makinesi, süt soğutma tankı, salt yakıt ve araç parçası
+gibi yanlış eşleşmeler kapsam sayılmaz. Uygun olmayan kayıtlar firma araştırması
+kuyruğuna alınmaz. İhale durumu, önerilen satış adımı ve araştırma durumu ayrı alanlardır.
 
 İKN ile aynı EKAP kaydı birleşir. Eski ilan yeni sonucu/iptali ezmez. Bir İKN'deki
 birden fazla yüklenici saklanır. Sonuç belgesindeki ihale tarihi, yüklenici adı,

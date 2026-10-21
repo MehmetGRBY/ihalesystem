@@ -613,6 +613,42 @@ tbody th:first-child {
   line-height: 1.45;
   margin-top: 4px;
 }
+.row-scope {
+  display: block;
+  color: #245b49;
+  font-size: 11px;
+  font-weight: 550;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.row-follow {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.tender-context {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.scope-match {
+  display: block;
+  width: 100%;
+  color: #245b49;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+.detail-section > .scope-basis {
+  font-size: 11px;
+  margin-bottom: 7px;
+  color: #245b49;
+}
 .row-source {
   display: block;
   font-size: 13px;

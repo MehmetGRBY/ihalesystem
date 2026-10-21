@@ -43,20 +43,21 @@
         <p class="stats-caption">Kayıtlı veriler</p>
         <dl>
           <div>
-            <dt>Kayıtlı fırsat</dt>
+            <dt>EFA ile ilgili kayıt</dt>
             <dd id="total">—</dd>
           </div>
           <div>
-            <dt>İklimlendirmeyle ilgili</dt>
+            <dt>Aktif takip</dt>
             <dd id="direct">—</dd>
           </div>
           <div>
-            <dt>Potansiyel proje</dt>
+            <dt>Sonuçlanan ihale</dt>
             <dd id="potential">—</dd>
           </div>
         </dl>
         <p class="stats-note">
-          Veriler arşiv kayıtları dahil toplam sayıyı gösterir.
+          Yalnızca EFA kapsamındaki kayıtlar sayılır. Toplama arşiv kayıtları da
+          dahildir.
         </p>
       </div>
     </aside>
@@ -68,8 +69,8 @@
             <time id="today"></time>
           </div>
           <p id="page-description">
-            Klima, ısıtma-soğutma ve montaj için projeler, ihaleler ve
-            yükleniciler.
+            Yalnızca EFA iş alanıyla ilgili ihaleler ve açıkça belirtilmiş iş
+            kapsamları.
           </p>
         </div>
         <div class="scan-control">
@@ -104,8 +105,8 @@
                 autocomplete="off"
             /></label>
             <label class="select-field"
-              ><span>Satış aşaması</span
-              ><select id="sales" aria-label="Satış aşaması">
+              ><span>Takip filtresi</span
+              ><select id="sales" aria-label="Takip filtresi">
                 <option value="actionable">Arşiv hariç</option>
                 <option value="">Tümü</option>
                 <option value="teklif">Teklif değerlendir</option>
@@ -133,14 +134,17 @@
               </summary>
               <div class="filter-popover">
                 <label
-                  >Uygunluk<select id="kind">
-                    <option value="">Tüm uygunluklar</option>
-                    <option value="dogrudan">İklimlendirmeyle ilgili</option>
-                    <option value="potansiyel">Potansiyel proje</option>
+                  >İş alanı<select id="kind">
+                    <option value="">EFA’nın tüm iş alanları</option>
+                    <option value="klima">Klima / iklimlendirme</option>
+                    <option value="havalandirma">Havalandırma</option>
+                    <option value="isitma">Isıtma</option>
+                    <option value="sogutma">Soğutma</option>
+                    <option value="mekanik">Mekanik tesisat</option>
                   </select></label
                 >
                 <label
-                  >Kaynak aşaması<select id="stage">
+                  >İhale aşaması<select id="stage">
                     <option value="">Tüm aşamalar</option>
                     <option value="ilan">İlan</option>
                     <option value="degerlendirme">Değerlendirme</option>
@@ -193,7 +197,7 @@
               <thead>
                 <tr>
                   <th scope="col">Proje / kurum</th>
-                  <th scope="col" id="stage-heading">Aşama</th>
+                  <th scope="col" id="stage-heading">İhale durumu</th>
                   <th scope="col" class="date-column" id="date-heading">
                     <button class="sort-button" data-sort="date">
                       İhale tarihi<img

@@ -17,6 +17,42 @@
     kapandi: "Kapalı",
     proje: "Yatırım / proje",
   };
+  const scopeLabels = {
+    klima: "Klima / iklimlendirme",
+    havalandirma: "Havalandırma",
+    isitma: "Isıtma",
+    sogutma: "Soğutma",
+    mekanik: "Mekanik tesisat",
+  };
+  const isEfaRelated = (row) => row.efa_scope?.matched === true;
+  const scopeText = (row) =>
+    (row.efa_scope?.categories || [])
+      .map((key) => scopeLabels[key])
+      .filter(Boolean)
+      .join(" · ");
+  function tenderStatus(row) {
+    if (row.stage === "iptal") return { label: "İptal edildi", tone: "red" };
+    if (row.stage === "kapandi") return { label: "Kapalı", tone: "neutral" };
+    if (row.stage === "sonuc") return { label: "Sonuçlandı", tone: "green" };
+    if (row.stage === "proje") {
+      if (row.source_presence === "missing")
+        return { label: "Proje durumu belirsiz", tone: "amber" };
+      if (row.source_status === "Hemen teslim proje")
+        return { label: "Teslime hazır proje", tone: "neutral" };
+      return row.source_status === "Devam eden proje"
+        ? { label: "Proje devam ediyor", tone: "blue" }
+        : { label: "Yatırım duyurusu", tone: "neutral" };
+    }
+    if (row.stage === "degerlendirme")
+      return { label: "Değerlendirmede", tone: "amber" };
+    if (row.freshness === "tarih_gecmis")
+      return { label: "Teklif tarihi geçti", tone: "amber" };
+    if (row.stage === "duzeltme")
+      return { label: "Düzeltme yayımlandı", tone: "blue" };
+    if (row.freshness === "yaklasan")
+      return { label: "Teklif bekleniyor", tone: "blue" };
+    return { label: "Tarih doğrulanmalı", tone: "neutral" };
+  }
   const fields = {
     verified: "Doğrulandı",
     single_source: "Tek kaynak",
@@ -268,8 +304,15 @@
   ) {
     const query = tr(filters.search).trim();
     const result = items.filter((row) => {
+      if (!isEfaRelated(row)) return false;
       if (view === "research" && !row.enrichment?.eligible) return false;
-      if (filters.kind && row.relevance !== filters.kind) return false;
+      if (
+        filters.kind &&
+        (scopeLabels[filters.kind]
+          ? !row.efa_scope.categories.includes(filters.kind)
+          : row.relevance !== filters.kind)
+      )
+        return false;
       if (filters.source && row.source !== filters.source) return false;
       if (filters.stage && row.stage !== filters.stage) return false;
       if (filters.freshness && row.freshness !== filters.freshness)
@@ -328,6 +371,10 @@
   const api = {
     sales,
     stages,
+    scopeLabels,
+    isEfaRelated,
+    scopeText,
+    tenderStatus,
     fields,
     esc,
     number,

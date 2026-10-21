@@ -3,6 +3,9 @@
 const {
   sales,
   stages,
+  isEfaRelated,
+  scopeText,
+  tenderStatus,
   fields,
   esc,
   number,
@@ -239,8 +242,10 @@ function renderDetail(row) {
   }
   const o = row.opportunity || {},
     ref = row.bulletin_reference,
-    dates = dateParts(row);
+    dates = dateParts(row),
+    tender = tenderStatus(row);
   const scope =
+    row.efa_scope?.evidence ||
     row.match_evidence ||
     o.reason ||
     "Teknik kapsam kaynak üzerinden doğrulanmalı.";
@@ -266,10 +271,11 @@ function renderDetail(row) {
   $("detail").innerHTML =
     `<div class="inspector-top"><span class="source-label" title="${esc(row.source)}">${esc(sourceName(row))}</span><div class="detail-actions"><button class="icon-button" data-bookmark aria-label="${saved.has(row.id) ? "Takipten çıkar" : "Takibe al"}" aria-pressed="${saved.has(row.id)}" title="Bu tarayıcıda takibe al">${icon(saved.has(row.id) ? "bookmark-filled" : "bookmark")}</button><button class="icon-button close-detail" data-close-detail aria-label="Ayrıntıyı kapat">${icon("x")}</button></div></div>
     <h2>${esc(row.title)}</h2><p class="detail-meta">${[row.city, row.tender_number ? `İKN: ${row.tender_number}` : ""].filter(Boolean).map(esc).join(" · ")}</p><p class="detail-meta">İhale: ${esc(dates.date)}${dates.time ? " · " + esc(dates.time) : ""}</p>
+    <div class="tender-context">${badge(tender.label, tender.tone)}<span class="scope-match">EFA kapsamı: ${esc(scopeText(row))}</span></div>
     ${contactPanelMarkup(row)}
     <section class="detail-section tender-facts"><h3>İhale bilgileri</h3><p>${esc(row.authority || "İdare belirtilmemiş")}</p><p class="detail-meta">${esc(stages[row.stage] || row.stage || "")}${row.published_date_raw ? ` · Yayın: ${esc(row.published_date_raw)}` : ""}</p></section>
     <div class="detail-status">${badge(sales[o.status] || "Kontrol gerekli", tone(o.status))}<div class="priority-score" title="Satış olasılığı değildir; kaydın takip önceliğidir."><span>Öncelik skoru</span><strong>${esc(o.priority || 0)}<small>/100</small></strong></div></div>
-    <section class="detail-section"><h3>İş kapsamında</h3>${scopeContent}</section>
+    <section class="detail-section"><h3>EFA ile neden ilgili?</h3><p class="scope-basis">${row.efa_scope?.basis === "scope" ? "İşin niteliği / kapsamı bölümünde belirtiliyor." : row.efa_scope?.basis === "demo" ? "Sentetik demo kaydı." : "Kaynak başlığında belirtiliyor."}</p>${scopeContent}</section>
     <section class="next-action">${icon("info-circle")}<div><h3>Sonraki adım</h3><p>${esc(o.next_action || "Kaynak bilgilerini ve ilgili satınalma birimini doğrulayın.")}</p></div></section>
     <section class="source-links"><h3>Kaynak dokümanları</h3><div>${documents || '<p class="research-note">Kaynak bağlantısı bulunamadı.</p>'}</div></section>
     ${enrichmentMarkup(row)}
@@ -313,15 +319,16 @@ function render() {
   // Keep the inspector tied to a row that is actually present in the list.
   if (!visible.some((row) => row.id === state.selected))
     state.selected = visible[0]?.id || null;
-  $("total").textContent = number(state.items.length);
+  const relevant = state.items.filter(isEfaRelated);
+  $("total").textContent = number(relevant.length);
   $("direct").textContent = number(
-    state.items.filter((row) => row.relevance === "dogrudan").length,
+    relevant.filter((row) => row.opportunity?.status !== "arsiv").length,
   );
   $("potential").textContent = number(
-    state.items.filter((row) => row.relevance === "potansiyel").length,
+    relevant.filter((row) => row.stage === "sonuc").length,
   );
   $("shown").textContent = state.loaded
-    ? `${number(rows.length)} eşleşen fırsat · ${number(visible.length)} gösteriliyor`
+    ? `${number(rows.length)} EFA fırsatı · ${number(visible.length)} gösteriliyor`
     : "Veriler yükleniyor…";
   $("more").hidden = rows.length <= state.limit;
   $("empty-actions").hidden = !state.loaded || Boolean(rows.length);
@@ -330,8 +337,7 @@ function render() {
   ).length;
   $("filter-count").textContent = extra;
   $("filter-count").hidden = !extra;
-  $("stage-heading").textContent =
-    state.view === "research" ? "Araştırma" : "Aşama";
+  $("stage-heading").textContent = "İhale durumu";
   document.querySelectorAll("[data-sort]").forEach((button) => {
     const selected = button.dataset.sort === state.sort.key;
     const header = button.closest("th");
@@ -355,6 +361,9 @@ function render() {
       row.tender_date_raw,
       row.tender_date_iso,
       row.opportunity,
+      row.efa_scope,
+      row.stage,
+      row.freshness,
       state.view === "research" ? researchStatus(row) : null,
     ]),
     state.selected,
@@ -367,8 +376,9 @@ function render() {
         .map((row) => {
           const dates = dateParts(row),
             o = row.opportunity || {},
-            research = researchStatus(row);
-          return `<tr data-record="${esc(row.id)}" class="${row.id === state.selected ? "selected" : ""}"><th scope="row"><button class="row-select" data-select="${esc(row.id)}" aria-pressed="${row.id === state.selected}"><span class="row-title">${esc(row.title)}</span><span class="row-meta">${esc([row.city, row.authority].filter(Boolean).join(" · "))}</span><span class="row-source">${esc(sourceName(row))}</span><span class="mobile-date">${esc(dates.date)} · Öncelik ${esc(o.priority || 0)}/100</span></button></th><td>${state.view === "research" ? badge(research.label, research.tone) : badge(sales[o.status] || "Kontrol gerekli", tone(o.status))}</td><td class="date-column"><span class="row-date">${esc(dates.date)}</span><span class="row-time">${esc(dates.time)}</span></td><td class="priority-column"><span class="priority-value">${esc(o.priority || 0)}/100</span></td><td class="row-tail">${icon("chevron-right", "row-arrow")}</td></tr>`;
+            research = researchStatus(row),
+            tender = tenderStatus(row);
+          return `<tr data-record="${esc(row.id)}" class="${row.id === state.selected ? "selected" : ""}"><th scope="row"><button class="row-select" data-select="${esc(row.id)}" aria-pressed="${row.id === state.selected}"><span class="row-title">${esc(row.title)}</span><span class="row-scope">${esc(scopeText(row))}</span><span class="row-meta">${esc([row.city, row.authority].filter(Boolean).join(" · "))}</span><span class="row-source">${esc(sourceName(row))}</span><span class="mobile-date">${esc(dates.date)} · Öncelik ${esc(o.priority || 0)}/100</span></button></th><td>${badge(tender.label, tender.tone)}<span class="row-follow">${state.view === "research" ? badge(research.label, research.tone) : "Takip: " + esc(sales[o.status] || "Kaynağı kontrol et")}</span></td><td class="date-column"><span class="row-date">${esc(dates.date)}</span><span class="row-time">${esc(dates.time)}</span></td><td class="priority-column"><span class="priority-value">${esc(o.priority || 0)}/100</span></td><td class="row-tail">${icon("chevron-right", "row-arrow")}</td></tr>`;
         })
         .join("") ||
       `<tr><td colspan="5" class="empty-state">${state.loaded ? "Bu filtrelere uyan fırsat bulunamadı.<br>Aramayı veya filtreleri değiştirebilirsiniz." : "İhaleler yükleniyor…"}</td></tr>`;
@@ -405,8 +415,7 @@ function renderSettings() {
       : "Otomatik güncelleme kapalı; Kaynakları tara düğmesini kullanabilirsiniz.");
 }
 function renderStatus() {
-  const s = state.status,
-    enrichment = s.enrichment || {};
+  const s = state.status;
   $("scan").disabled = Boolean(s.scanning || s.is_demo);
   $("scan").querySelector("span").textContent = s.scanning
     ? "Taranıyor…"
@@ -416,8 +425,17 @@ function renderStatus() {
     : s.last_scan
       ? `Son tarama: ${dateText(s.last_scan.finished_at)}`
       : "Henüz tarama yapılmadı";
+  const researchRows = state.items.filter(
+    (row) => isEfaRelated(row) && row.enrichment?.eligible,
+  );
+  const completed = researchRows.filter(
+    (row) => row.enrichment.state === "completed",
+  ).length;
+  const busy = researchRows.filter((row) =>
+    ["queued", "running"].includes(row.enrichment.state),
+  ).length;
   $("research-status").textContent =
-    `${number(enrichment.counts?.completed)} tamamlandı · ${number((enrichment.counts?.queued || 0) + (enrichment.counts?.running || 0))} sırada / çalışıyor`;
+    `EFA kayıtları: ${number(completed)} araştırma tamamlandı · ${number(busy)} sırada / çalışıyor`;
   $("enrich-all").disabled = pending.has("*");
   $("enrich-all").innerHTML =
     `${icon("file-search")}${pending.has("*") ? "Sıraya alınıyor…" : "Firmaları araştır"}`;
@@ -538,7 +556,7 @@ function changeView(view) {
   const names = {
     opportunities: [
       "Fırsatlar",
-      "Klima, ısıtma-soğutma ve montaj için projeler, ihaleler ve yükleniciler.",
+      "Yalnızca EFA iş alanıyla ilgili ihaleler ve açıkça belirtilmiş iş kapsamları.",
     ],
     research: [
       "Araştırmalar",
@@ -565,6 +583,12 @@ $("today").textContent = new Date().toLocaleDateString("tr-TR", {
 $("filters").addEventListener("submit", (event) => event.preventDefault());
 filterIds.forEach((id) =>
   $(id).addEventListener("input", () => {
+    if (
+      id === "stage" &&
+      ["iptal", "kapandi"].includes($(id).value) &&
+      $("sales").value === "actionable"
+    )
+      $("sales").value = "";
     state.limit = 60;
     render();
   }),

@@ -190,7 +190,7 @@ ORNEK BELEDIYE BASKANLIGI
 a) Tarihi : 20.09.2026
 b) Türü : Yapım işi
 2- İhale konusu yapım işinin
-a) Adı : Hastane Binası Yapım İşi
+a) Adı : Hastane Binası Mekanik Tesisat Yapım İşi
 b) Yapılacağı yer : Istanbul
 4- Sözleşmenin
 a) Tarihi : 08.10.2026
@@ -244,7 +244,7 @@ def test_local_pdf_is_winner_proof_without_network_or_trusting_imported_name(ser
     make_award_pdf(path, winner_label=label)
     row = {
         "id": "a" * 24,
-        "title": "Hastane Binası Yapım İşi",
+        "title": "Hastane Binası Mekanik Tesisat Yapım İşi",
         "authority": "Örnek Belediye",
         "source": "EKAP",
         "source_key": "ekap",
@@ -509,6 +509,8 @@ def test_ekap_without_local_pdf_uses_configured_award_search(service, monkeypatc
         source_key="ekap",
         research_links={},
         is_demo=False,
+        match_basis="scope",
+        match_evidence="Mekanik tesisat montajı",
     )
     with bulucu.connect() as conn:
         bulucu.save_items(conn, [row])
@@ -685,6 +687,8 @@ def test_adding_search_provider_bypasses_old_manual_research_cache(service):
     row = dict(
         seeded()[0],
         is_demo=False,
+        match_basis="scope",
+        match_evidence="Mekanik tesisat montajı",
         source_key="ekap",
         tender_number="2026/123",
         research_links={},
@@ -734,6 +738,8 @@ def test_changed_searxng_configuration_bypasses_manual_cache(service, monkeypatc
     row = dict(
         seeded()[0],
         is_demo=False,
+        match_basis="scope",
+        match_evidence="Mekanik tesisat montajı",
         source_key="ekap",
         tender_number="2026/123",
         research_links={},
@@ -748,3 +754,23 @@ def test_changed_searxng_configuration_bypasses_manual_cache(service, monkeypatc
     assert service.request(row, request) == "cached"
     service.settings = service.settings.model_copy(update=change)
     assert service.request(row, request) == "queued"
+
+
+def test_efa_unrelated_records_cannot_consume_research_queue(service):
+    service.demo = False
+    row = dict(
+        seeded()[0],
+        is_demo=False,
+        title="Çim bakım makineleri alımı",
+        match_basis="scope",
+        match_evidence="Kök havalandırma makinesi alımı",
+    )
+    with bulucu.connect() as connection:
+        bulucu.save_items(connection, [row])
+    row = next(record for record in bulucu.records() if record["id"] == row["id"])
+    assert row["efa_scope"]["matched"] is False
+    assert service.request_batch([row], automatic=True) == 0
+    assert service.attach([row])[0]["enrichment"]["eligible"] is False
+    _, code = call_handler(service, "/api/enrich", "POST", {"id": row["id"]})
+    assert code == 400
+    assert service.jobs() == {}
