@@ -156,3 +156,185 @@ test("untrusted external text and URLs cannot become active HTML or script links
     "&lt;img src=x onerror=&quot;bad()&quot;&gt;",
   );
 });
+
+test("announcement contacts stay available before research and keep their authority role", () => {
+  const row = {
+    authority: "Aydın Gençlik ve Spor İl Müdürlüğü",
+    contacts: [
+      {
+        role: "idare",
+        phone: "02562131166",
+        address: "Hasanefendi Mah. No:67",
+      },
+    ],
+    enrichment: { eligible: true, state: "not_started", result: null },
+  };
+  for (const state of ["not_started", "queued", "running", "failed"]) {
+    const cards = ui.contactCards({
+      ...row,
+      enrichment: { ...row.enrichment, state },
+    });
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].role, "İdare / satınalma birimi");
+    assert.equal(cards[0].name, row.authority);
+    assert.equal(cards[0].entries[0].values[0].value, "02562131166");
+    assert.equal(cards[0].entries[1].field, "address");
+    assert.equal(cards[0].entries[0].values[0].status, "announcement");
+  }
+});
+
+test("researched contractor never borrows authority phone or masks conflicting values", () => {
+  const row = {
+    contacts: [{ role: "idare", name: "Belediye", phone: "02120000000" }],
+    enrichment: {
+      eligible: true,
+      state: "completed",
+      result: {
+        winner: {
+          company_name: "ABC İnşaat",
+          phone: "+902121111111",
+          email: "info@abc.test",
+          address: "Firma adresi",
+          tax_no: "1234567890",
+        },
+        field_verification: {
+          phone: { status: "conflicting" },
+          email: { status: "single_source" },
+          address: { status: "verified" },
+        },
+      },
+    },
+  };
+  const cards = ui.contactCards(row);
+  assert.equal(cards.length, 2);
+  assert.equal(cards[0].role, "Yüklenici · bot araştırması");
+  assert.deepEqual(cards[0].entries[0].values, [
+    { value: null, status: "conflicting" },
+  ]);
+  assert.equal(
+    cards[0].entries.find((e) => e.field === "address").values[0].status,
+    "verified",
+  );
+  assert.equal(
+    cards[0].entries.find((e) => e.field === "tax_no").values[0].value,
+    "1234567890",
+  );
+  assert.equal(cards[1].entries[0].values[0].value, "02120000000");
+  const missingPhone = structuredClone(row);
+  missingPhone.enrichment.result.winner.phone = null;
+  missingPhone.enrichment.result.field_verification.phone.status = "missing";
+  assert.equal(
+    ui.contactCards(missingPhone)[0].entries[0].values[0].value,
+    null,
+  );
+  assert.equal(
+    ui.contactCards({
+      ...row,
+      enrichment: { ...row.enrichment, state: "stale" },
+    })[0].name,
+    "ABC İnşaat",
+  );
+  assert.equal(
+    ui.researchStatus({
+      ...row,
+      enrichment: { ...row.enrichment, state: "stale" },
+    }).key,
+    "stale",
+  );
+});
+
+test("duplicate company contacts merge while separate parties and differing values remain visible", () => {
+  const contact = {
+    role: "yuklenici",
+    name: "ABC İnşaat",
+    phone: "0212 111 11 11",
+    address: "Firma adresi",
+    source_url: "https://abc.test/contact",
+  };
+  const row = {
+    contacts: [
+      contact,
+      { ...contact },
+      {
+        ...contact,
+        email: "info@abc.test",
+        acquisition_method: "verified_company_directory",
+      },
+      { ...contact, name: "Başka Firma" },
+    ],
+    enrichment: {
+      result: {
+        winner: {
+          company_name: "ABC İnşaat",
+          phone: "+902121111111",
+          address: "Firma adresi",
+        },
+        field_verification: { phone: { status: "single_source" } },
+      },
+    },
+  };
+  const cards = ui.contactCards(row);
+  assert.equal(cards.length, 3);
+  assert.equal(cards[1].entries.length, 1);
+  assert.equal(cards[1].entries[0].field, "email");
+  assert.equal(cards[1].entries[0].values[0].status, "company_site");
+  assert.equal(cards[2].name, "Başka Firma");
+  const unresearched = ui.contactCards({
+    contacts: [
+      contact,
+      { ...contact },
+      { ...contact, phone: "0212 222 22 22" },
+    ],
+  });
+  assert.equal(unresearched.length, 1);
+  assert.equal(unresearched[0].entries[0].values.length, 2);
+  assert.equal(unresearched[0].sources.length, 1);
+  const covered = ui.contactCards({
+    ...row,
+    contacts: [
+      {
+        ...contact,
+        contact_scope: "şirket merkezi",
+        note: "Proje yetkilisi doğrulanmadı.",
+      },
+    ],
+  });
+  assert.equal(covered.length, 1);
+  assert.deepEqual(covered[0].sources, [contact.source_url]);
+  assert.match(covered[0].notes[0], /Proje yetkilisi doğrulanmadı/);
+  assert.deepEqual(
+    ui.contactCards({ contacts: [], enrichment: { eligible: true } }),
+    [],
+  );
+});
+
+test("contact actions accept ordinary phone/email and reject injected schemes, query headers and markup", () => {
+  assert.equal(ui.contactHref("phone", "0212 222 35 44"), "tel:02122223544");
+  assert.equal(
+    ui.contactHref("phone", "+90 (212) 222-35-44"),
+    "tel:+902122223544",
+  );
+  assert.equal(
+    ui.contactHref("email", "sales+hvac@firma.com.tr"),
+    "mailto:sales+hvac@firma.com.tr",
+  );
+  assert.equal(
+    ui.contactHref("website", "https://firma.test/contact"),
+    "https://firma.test/contact",
+  );
+  for (const value of [
+    "javascript:alert(1)",
+    '1234567\" onclick=\"bad()',
+    "123\n4567890",
+    "+123456789012345678",
+  ])
+    assert.equal(ui.contactHref("phone", value), null);
+  for (const value of [
+    "a@b.test?bcc=x@y.test",
+    "a@b.test\r\nBcc: x@y.test",
+    "<a@b.test>",
+  ])
+    assert.equal(ui.contactHref("email", value), null);
+  assert.equal(ui.contactHref("website", "javascript:alert(1)"), null);
+  assert.equal(ui.contactHref("address", "https://firma.test"), null);
+});

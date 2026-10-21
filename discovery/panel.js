@@ -7,6 +7,8 @@ const {
   esc,
   number,
   safeURL,
+  contactHref,
+  contactCards,
   researchStatus,
   dateParts,
   filterRows,
@@ -136,26 +138,47 @@ function rememberDetail() {
     ),
   );
 }
-function contactsMarkup(result) {
-  return `<dl class="contact-fields">${[
-    ["phone", "Telefon"],
-    ["email", "E-posta"],
-    ["website", "Web sitesi"],
-    ["address", "Adres"],
-  ]
-    .map(([field, label]) => {
-      const value = result.winner?.[field];
-      const verification =
-        result.field_verification?.[field]?.status || "missing";
-      const website = field === "website" && safeURL(value);
-      const text = website
-        ? `<a href="${esc(website)}" target="_blank" rel="noopener noreferrer">Firma sitesi</a>`
-        : value
-          ? esc(value)
-          : '<span class="missing-value">Kaynakta tamamlanmadı</span>';
-      return `<div class="contact-field"><dt>${label}</dt><dd>${text}<span class="badge ${esc(verification)}">${esc(fields[verification] || "Eksik")}</span></dd></div>`;
-    })
-    .join("")}</dl>`;
+function contactPanelMarkup(row) {
+  const e = row.enrichment;
+  const cards = contactCards(row);
+  const busy = pending.has(row.id) || ["queued", "running"].includes(e?.state);
+  const status = pending.has(row.id)
+    ? { label: "Araştırma başlatılıyor…", tone: "blue" }
+    : researchStatus(row);
+  const emptyMessage = busy
+    ? "Araştırma sürüyor; bulunan iletişim bilgileri burada görünecek."
+    : e?.eligible
+      ? "Firma araştırmasını başlatabilir veya kaynak bağlantısı ekleyerek yenileyebilirsiniz."
+      : "İletişim bilgileri için kaynak dokümanlarını kontrol edebilirsiniz.";
+  const labels = {
+    ...fields,
+    announcement: "İlanda",
+    company_site: "Firma sitesi",
+  };
+  const entries = (card) =>
+    `<dl class="contact-fields">${card.entries
+      .map(
+        ({ field, label, values }) =>
+          `<div class="contact-field" data-contact-field="${field}"><dt>${label}</dt><dd>${values
+            .map(({ value, status }) => {
+              const href = contactHref(field, value);
+              const external = field === "website";
+              const text = value
+                ? esc(value)
+                : status === "conflicting"
+                  ? "Çelişkili bilgi"
+                  : "Bulunamadı";
+              return `<div class="contact-value">${href ? `<a href="${esc(href)}" ${external ? 'target="_blank" rel="noopener noreferrer"' : ""}>${text}</a>` : `<span class="${value ? "" : "missing-value"}">${text}</span>`}${status !== "missing" ? " " + badge(labels[status] || "Kontrol gerekli", status) : ""}</div>`;
+            })
+            .join("")}</dd></div>`,
+      )
+      .join("")}</dl>`;
+  return `<section class="contact-panel" aria-labelledby="contact-heading"><div class="enrichment-heading"><h3 id="contact-heading">İletişim ve firma bilgileri</h3>${e?.eligible ? `<button class="button outline" data-enrich ${busy ? "disabled" : ""}>${icon("search")}${busy ? "Araştırılıyor…" : "Firmayı araştır"}</button>` : ""}</div>
+    ${e?.eligible ? `<p class="contact-research-state">${badge(status.label, status.tone)}${e.result && ["stale", "failed", "queued", "running"].includes(e.state) ? "<span>Önceki araştırma bilgileri gösteriliyor.</span>" : ""}</p>` : ""}
+    ${e?.result?.is_demo ? '<p class="demo-contact-note">Sentetik demo — gerçek firma bilgisi değildir.</p>' : ""}
+    ${cards.length ? cards.map((card) => `<article class="contact-card ${card.kind}"><p class="contact-role">${esc(card.role)}</p><h4 class="company-name">${esc(card.name)}</h4>${card.entries.length ? entries(card) : '<p class="research-note">Telefon, e-posta ve adres kaynakta belirtilmemiş.</p>'}${card.notes.length ? `<p class="contact-note">${card.notes.map(esc).join("<br>")}</p>` : ""}${card.sources.length ? `<div class="contact-sources">${card.sources.map((url, i) => sourceLink(url, `İletişim kaynağı${card.sources.length > 1 ? ` ${i + 1}` : ""}`)).join("")}</div>` : ""}</article>`).join("") : `<p class="contact-empty">Bu ihale için telefon, e-posta veya adres henüz bulunamadı. ${emptyMessage}</p>`}
+    ${!e?.result?.winner && cards.some((card) => card.role === "İdare / satınalma birimi") ? '<p class="contact-caption">İdare iletişimi gösteriliyor. Yüklenici bilgisi henüz doğrulanmadı.</p>' : ""}
+  </section>`;
 }
 function enrichmentMarkup(row) {
   const e = row.enrichment;
@@ -171,8 +194,7 @@ function enrichmentMarkup(row) {
     public_registry: "Resmî sicil",
     news: "Diğer açık kaynak",
   };
-  return `<section class="enrichment"><div class="enrichment-heading"><h3>Firma araştırması</h3><button class="button outline" data-enrich ${busy ? "disabled" : ""}>${icon("search")}${busy ? "Bekleniyor…" : "Firmayı araştır"}</button></div>
-    ${r?.winner ? `<p class="company-name">${esc(r.winner.company_name || "Firma adı doğrulanamadı")}</p><p class="company-role">${esc(row.opportunity?.target_role || "İşi alan yüklenici / proje satınalma birimi")}</p>${contactsMarkup(r)}` : `<p class="company-name">${esc(row.opportunity?.target_name || "Firma adı henüz belirlenemedi")}</p><p class="company-role">${esc(row.opportunity?.target_role || "")}</p><p class="research-note" style="margin-top:14px">Firma araştırması, kaynaklardaki yüklenici ve kurumsal iletişim bilgilerini kontrol eder.</p>`}
+  return `<section class="enrichment"><div class="enrichment-heading"><h3>Araştırma ayrıntıları</h3></div>
     <p class="research-summary">${badge(status.label, status.tone)}${r ? ` Kanıt skoru: ${Math.round(r.confidence * 100)}/100 · Bilgi tamlığı: %${Math.round(r.completeness * 100)}` : ""}</p>
     ${e.local_only && r ? '<p class="research-note">Resmî PDF kanıtı işlendi. Ek firma bilgileri için araştırmayı başlatabilirsiniz.</p>' : ""}
     ${e.error ? `<p class="detail-error">${esc(e.error)}</p>` : ""}
@@ -217,7 +239,6 @@ function renderDetail(row) {
   }
   const o = row.opportunity || {},
     ref = row.bulletin_reference,
-    contacts = row.contacts || [],
     dates = dateParts(row);
   const scope =
     row.match_evidence ||
@@ -244,21 +265,21 @@ function renderDetail(row) {
   ].join("");
   $("detail").innerHTML =
     `<div class="inspector-top"><span class="source-label" title="${esc(row.source)}">${esc(sourceName(row))}</span><div class="detail-actions"><button class="icon-button" data-bookmark aria-label="${saved.has(row.id) ? "Takipten çıkar" : "Takibe al"}" aria-pressed="${saved.has(row.id)}" title="Bu tarayıcıda takibe al">${icon(saved.has(row.id) ? "bookmark-filled" : "bookmark")}</button><button class="icon-button close-detail" data-close-detail aria-label="Ayrıntıyı kapat">${icon("x")}</button></div></div>
-    <h2>${esc(row.title)}</h2><p class="detail-meta">${esc([row.city, row.authority].filter(Boolean).join(" · "))}</p><p class="detail-meta">${row.tender_number ? `İKN: ${esc(row.tender_number)}` : ""}${row.published_date_raw ? ` &nbsp; Yayın: ${esc(row.published_date_raw)}` : ""}</p><p class="detail-meta">İhale tarihi: ${esc(dates.date)}${dates.time ? " · " + esc(dates.time) : ""} · ${esc(stages[row.stage] || row.stage || "")}</p>
+    <h2>${esc(row.title)}</h2><p class="detail-meta">${[row.city, row.tender_number ? `İKN: ${row.tender_number}` : ""].filter(Boolean).map(esc).join(" · ")}</p><p class="detail-meta">İhale: ${esc(dates.date)}${dates.time ? " · " + esc(dates.time) : ""}</p>
+    ${contactPanelMarkup(row)}
+    <section class="detail-section tender-facts"><h3>İhale bilgileri</h3><p>${esc(row.authority || "İdare belirtilmemiş")}</p><p class="detail-meta">${esc(stages[row.stage] || row.stage || "")}${row.published_date_raw ? ` · Yayın: ${esc(row.published_date_raw)}` : ""}</p></section>
     <div class="detail-status">${badge(sales[o.status] || "Kontrol gerekli", tone(o.status))}<div class="priority-score" title="Satış olasılığı değildir; kaydın takip önceliğidir."><span>Öncelik skoru</span><strong>${esc(o.priority || 0)}<small>/100</small></strong></div></div>
     <section class="detail-section"><h3>İş kapsamında</h3>${scopeContent}</section>
     <section class="next-action">${icon("info-circle")}<div><h3>Sonraki adım</h3><p>${esc(o.next_action || "Kaynak bilgilerini ve ilgili satınalma birimini doğrulayın.")}</p></div></section>
     <section class="source-links"><h3>Kaynak dokümanları</h3><div>${documents || '<p class="research-note">Kaynak bağlantısı bulunamadı.</p>'}</div></section>
     ${enrichmentMarkup(row)}
-    <details class="detail-disclosure" data-disclosure="contacts"><summary>Kaynakta bulunan iletişimler (${contacts.length})</summary>${contacts.length ? contacts.map((c) => `<p><strong>${esc(c.role === "yuklenici" ? "Yüklenici" : c.role === "idare" ? "İdare" : "Duyurudaki iletişim")}: ${esc(c.name)}</strong>${c.phone ? "<br>Telefon: " + esc(c.phone) : ""}${c.email ? "<br>E-posta: " + esc(c.email) : ""}${c.address ? "<br>Adres: " + esc(c.address) : ""}${c.contact_scope ? "<br>" + esc(c.contact_scope) + " · " + esc(c.checked_at) : ""}${c.acquisition_method === "verified_company_directory" ? "<br>" + sourceLink(c.source_url, "Resmî şirket sitesi") + "<br>" + esc(c.note) : ""}</p>`).join("") : "<p>Keşif kaynağında iletişim bilgisi yok. Firma araştırmasını kullanabilirsiniz.</p>"}${(
-      row.contractors || []
-    )
+    ${(row.contractors || [])
       .filter((c) => c.period_end_raw)
       .map(
         (c) =>
           `<p>${esc(c.name)} · Sözleşme bitişi: ${esc(c.period_end_raw)}</p>`,
       )
-      .join("")}</details>`;
+      .join("")}`;
   const open = disclosures.get(row.id) || new Set();
   $("detail")
     .querySelectorAll("details")

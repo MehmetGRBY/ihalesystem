@@ -751,7 +751,7 @@ tr.selected .row-arrow {
   display: none;
 }
 .inspector h2 {
-  font-size: 22px;
+  font-size: 20px;
   letter-spacing: -0.35px;
   line-height: 1.35;
   margin-bottom: 8px;
@@ -890,17 +890,103 @@ tr.selected .row-arrow {
   line-height: 1.5;
   margin-top: 5px;
 }
+.contact-panel {
+  margin: 18px 0 22px;
+}
+.contact-panel .enrichment-heading {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.contact-panel .enrichment-heading h3 {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+}
+.contact-panel .enrichment-heading .button {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 6px 9px;
+}
+.contact-research-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.contact-card {
+  border: 1px solid #d6e0ef;
+  border-radius: 8px;
+  background: #f8faff;
+  padding: 14px;
+  margin-top: 10px;
+}
+.contact-card.research {
+  border-color: #b9cdef;
+  background: #f0f5ff;
+}
+.contact-role {
+  color: #2455b4;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.5;
+  margin-bottom: 5px;
+}
+.contact-card .company-name {
+  font-size: 15px;
+  margin: 0;
+}
+.contact-card .research-note {
+  margin-top: 10px;
+}
+.contact-caption,
+.contact-note,
+.demo-contact-note,
+.contact-empty {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.contact-empty {
+  background: #f3f5fa;
+  padding: 14px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.demo-contact-note {
+  color: #8b5200;
+}
+.contact-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 12px;
+}
+.contact-sources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+.contact-sources .icon {
+  width: 14px;
+  height: 14px;
+}
 .contact-fields {
   display: grid;
-  gap: 14px;
-  margin-top: 19px;
+  gap: 10px;
+  margin-top: 14px;
 }
 .contact-field {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-columns: 68px minmax(0, 1fr);
   gap: 8px;
   align-items: start;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
 }
 .contact-field dt {
@@ -913,10 +999,29 @@ tr.selected .row-arrow {
   min-width: 0;
 }
 .contact-field .badge {
-  font-size: 11px;
-  margin: 2px 0 0 8px;
+  font-size: 10px;
+  margin: 2px 0 0 6px;
+  padding: 2px 6px;
   vertical-align: baseline;
   white-space: nowrap;
+}
+.contact-value + .contact-value {
+  margin-top: 8px;
+}
+.contact-value > a,
+.contact-value > span:first-child {
+  display: inline;
+}
+.contact-field[data-contact-field="phone"] a {
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+.contact-field .badge.announcement,
+.contact-field .badge.company_site {
+  background: #e7edf7;
+  color: #40587c;
 }
 .contact-field .badge.single_source,
 .contact-field .badge.missing {

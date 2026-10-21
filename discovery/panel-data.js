@@ -85,6 +85,162 @@
       key: result.status,
     };
   }
+  const contactLabels = {
+    phone: "Telefon",
+    email: "E-posta",
+    address: "Adres",
+    website: "Web sitesi",
+    city: "İl",
+    district: "İlçe",
+    mersis_no: "MERSİS no",
+    trade_registry_no: "Sicil no",
+    trade_registry_office: "Sicil müdürlüğü",
+    tax_no: "Vergi no",
+    tax_office: "Vergi dairesi",
+  };
+  function contactHref(field, value) {
+    const text = String(value || "").trim();
+    if (field === "website") return safeURL(text);
+    if (field === "phone" && /^\+?[\d ()-]{7,24}$/.test(text)) {
+      const phone = text.replace(/[ ()-]/g, "");
+      return /^\+?\d{7,15}$/.test(phone) ? `tel:${phone}` : null;
+    }
+    if (field === "email" && /^[\w.+-]+@[\w.-]+\.[a-z]{2,}$/i.test(text))
+      return `mailto:${text}`;
+    return null;
+  }
+  function contactCards(row) {
+    const result = row.enrichment?.result;
+    const winner = result?.winner;
+    const identity = (value) =>
+      tr(value)
+        .normalize("NFKD")
+        .replace(/\p{M}/gu, "")
+        .replace(/ı/g, "i")
+        .replace(/[^\p{L}\p{N}]/gu, "");
+    const comparable = (field, value) =>
+      field === "phone"
+        ? String(value || "")
+            .replace(/\D/g, "")
+            .replace(/^90(?=\d{10}$)/, "0")
+        : tr(value).trim();
+    const cards = [];
+    if (winner) {
+      cards.push({
+        kind: "research",
+        role: "Yüklenici · bot araştırması",
+        name: winner.company_name || "Firma adı doğrulanamadı",
+        entries: Object.entries(contactLabels)
+          .filter(
+            ([field]) =>
+              ["phone", "email", "address", "website"].includes(field) ||
+              winner[field],
+          )
+          .map(([field, label]) => {
+            const status =
+              result.field_verification?.[field]?.status ||
+              (winner[field] ? "single_source" : "missing");
+            return {
+              field,
+              label,
+              values: [
+                {
+                  value:
+                    status === "conflicting" ? null : winner[field] || null,
+                  status,
+                },
+              ],
+            };
+          }),
+        sources: [],
+        notes: [],
+      });
+    }
+    const groups = new Map();
+    for (const contact of row.contacts || []) {
+      const name =
+        contact.name ||
+        (contact.role === "idare" ? row.authority : "") ||
+        "Adı belirtilmemiş";
+      const key = `${contact.role}:${identity(name)}`;
+      if (!groups.has(key))
+        groups.set(key, {
+          kind: "source",
+          role:
+            {
+              idare: "İdare / satınalma birimi",
+              yuklenici: "İlandaki yüklenici",
+              duyuru: "Duyurudaki iletişim",
+            }[contact.role] || "Duyurudaki iletişim",
+          name,
+          entries: [],
+          sources: [],
+          notes: [],
+        });
+      const card = groups.get(key);
+      const sameWinner =
+        contact.role === "yuklenici" &&
+        winner?.company_name &&
+        identity(name) === identity(winner.company_name);
+      for (const field of ["phone", "email", "address", "website"]) {
+        const value = contact[field];
+        if (!value) continue;
+        // A source contact is never used to fill a researched or conflicting field.
+        // Suppress only an identical, already visible value for the same contractor.
+        if (
+          sameWinner &&
+          result.field_verification?.[field]?.status !== "conflicting" &&
+          comparable(field, value) === comparable(field, winner[field])
+        )
+          continue;
+        let entry = card.entries.find((item) => item.field === field);
+        if (!entry) {
+          entry = { field, label: contactLabels[field], values: [] };
+          card.entries.push(entry);
+        }
+        if (
+          !entry.values.some(
+            (item) =>
+              comparable(field, item.value) === comparable(field, value),
+          )
+        )
+          entry.values.push({
+            value,
+            status:
+              contact.acquisition_method === "verified_company_directory"
+                ? "company_site"
+                : "announcement",
+          });
+      }
+      if (contact.source_url && !card.sources.includes(contact.source_url))
+        card.sources.push(contact.source_url);
+      const note = [contact.contact_scope, contact.checked_at, contact.note]
+        .filter(Boolean)
+        .join(" · ");
+      if (note && !card.notes.includes(note)) card.notes.push(note);
+      // Empty duplicate cards add no information; named source-only parties still matter.
+      card.coveredByWinner = Boolean(sameWinner);
+    }
+    for (const card of groups.values()) {
+      if (!card.coveredByWinner || card.entries.length) {
+        card.entries.sort(
+          (a, b) =>
+            Object.keys(contactLabels).indexOf(a.field) -
+            Object.keys(contactLabels).indexOf(b.field),
+        );
+        cards.push(card);
+      } else {
+        // Keep provenance and general-office caveats when duplicate values are hidden.
+        cards[0].sources.push(
+          ...card.sources.filter((url) => !cards[0].sources.includes(url)),
+        );
+        cards[0].notes.push(
+          ...card.notes.filter((note) => !cards[0].notes.includes(note)),
+        );
+      }
+    }
+    return cards;
+  }
   function dateParts(row) {
     const raw = String(row.tender_date_raw || "");
     const match = raw.match(
@@ -176,6 +332,8 @@
     esc,
     number,
     safeURL,
+    contactHref,
+    contactCards,
     researchStatus,
     dateParts,
     filterRows,
