@@ -1,13 +1,291 @@
 <!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IhaleSystem · EFA</title>
-<style>
-:root{font-family:Segoe UI,Arial,sans-serif;color:#e7eef7;background:#101923}body{max-width:1180px;margin:40px auto;padding:0 22px}header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}h1{font-size:32px;margin:8px 0}p,.muted{color:#a4b5c8;line-height:1.6}.brand{color:#64dbc4;letter-spacing:3px;font-weight:700}button,.download{border:0;background:#64dbc4;color:#10232c;padding:12px 18px;border-radius:9px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}button:disabled{opacity:.5}button[hidden]{display:none}input,select{background:#1c2a38;border:1px solid #3b4c5e;border-radius:8px;color:#e7eef7;padding:12px}.filters{display:flex;gap:12px;margin:28px 0;flex-wrap:wrap}input{flex:1;min-width:200px}.stats{display:flex;gap:16px;margin:25px 0}.stat{background:#1c2a38;border-radius:12px;padding:18px;flex:1}.stat b{display:block;font-size:28px;color:#64dbc4}.card{background:#1a2836;border:1px solid #304355;border-radius:12px;padding:22px;margin:14px 0}.card h2{font-size:18px;line-height:1.5;margin:12px 0}.badge{font-size:12px;background:#294b51;color:#97ead8;padding:5px 9px;border-radius:6px}.potential{background:#4a412b;color:#edd28f}.card a{color:#79dcca}.meta{display:flex;gap:20px;flex-wrap:wrap;font-size:14px;color:#b3c3d4}.source{padding:7px 0;font-size:14px}.error{color:#ffab9f}.notice{border-left:3px solid #64dbc4;padding-left:15px}#status{margin:16px 0}footer{margin-top:30px;font-size:13px;color:#a4b5c8}summary{cursor:pointer}details{background:#182532;padding:14px;border-radius:10px}
-.enrichment{border-top:1px solid #3b4c5e;margin-top:20px;padding-top:12px}.enrichment h3{font-size:16px}.research-form{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.research-form input{min-width:180px}.stats{flex-wrap:wrap}.stat{min-width:150px}.field-status{display:inline-block;margin:3px 0 3px 6px}.field-status.single_source,.field-status.missing{background:#4a412b;color:#edd28f}.field-status.conflicting{background:#542e30;color:#ffb2a6}.contact-field{overflow-wrap:anywhere}#operations details{margin:12px 0}#operations p{margin:6px 0}@media(max-width:600px){body{margin:20px auto;padding:0 14px}.card{padding:16px}.research-form input{min-width:0;width:100%}header button,.download{margin:4px 0}.stat{min-width:100px}.meta{gap:10px}}
-</style></head><body>
-<header><div><div class="brand">EFA MÜHENDİSLİK</div><h1>İhale ve Firma Takibi</h1><p>Klima, ısıtma-soğutma ve montaj için projeler, ihaleler ve yükleniciler.</p></div><div><button id="enrich-all">Firmaları araştır</button> <button id="scan">Şimdi tara</button> <a class="download" href="/api/export" download="ihalesystem.json">JSON indir</a></div></header>
-<p class="notice">Her kayıt bir satış adayıdır; HVAC ihtiyacı ve satınalma aşaması kaynak üzerinden doğrulanmalıdır. Sonuçlanan yapım ihalelerinde işi alan yükleniciyi, yatırım duyurularında proje sahibini takip edin.</p>
-<div class="stats"><div class="stat"><b id="total">0</b>Kayıtlı fırsat</div><div class="stat"><b id="direct">0</b>Doğrudan ilgili</div><div class="stat"><b id="potential">0</b>Potansiyel proje</div></div>
-<p id="research-status" class="notice" role="status"></p><div id="operations"></div><div id="status" class="muted">Durum yükleniyor…</div><div id="sources"></div>
-<div class="filters"><input id="search" placeholder="Şehir, proje, yüklenici veya anahtar kelime ara…" aria-label="Ara"><select id="sales" aria-label="Satış takibi"><option value="actionable">Takip edilecek fırsatlar</option><option value="teklif">Teklif değerlendir</option><option value="yuklenici">Yükleniciye ulaş</option><option value="proje">Devam eden projeler</option><option value="takip">İhale sonucunu takip et</option><option value="kontrol">Araştırma gerekli</option><option value="arsiv">Arşiv / iptal / bitmiş iş</option><option value="">Tüm kayıtlar</option></select><select id="kind" aria-label="Uygunluk"><option value="">Tüm uygunluklar</option><option value="dogrudan">HVAC ifadesi bulundu</option><option value="potansiyel">Potansiyel proje</option></select><select id="source" aria-label="Kaynak"><option value="">Tüm kaynaklar</option></select><select id="stage" aria-label="Aşama"><option value="">Tüm kaynak aşamaları</option><option value="ilan">İlan</option><option value="degerlendirme">Değerlendirme</option><option value="duzeltme">Düzeltme</option><option value="iptal">İptal</option><option value="sonuc">Sonuç</option><option value="proje">Yatırım projesi</option></select><select id="freshness" aria-label="Tarih durumu"><option value="">Tüm ihale tarihleri</option><option value="yaklasan">Yaklaşan ihale</option><option value="tarih_belirsiz">Tarih bilinmiyor</option><option value="tarih_gecmis">İhale tarihi geçmiş</option><option value="kapali">Sonuç / kapalı / iptal</option></select></div>
-<div id="shown" class="muted"></div><main id="list"></main><button id="more" hidden>Daha fazla göster</button><footer id="footer"></footer>
-<script src="/panel.js"></script></body></html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#14263d" />
+    <title>İhale Bulucu · EFA</title>
+    <link
+      rel="preload"
+      href="/assets/InterVariable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/panel.css" />
+    <script src="/panel-data.js" defer></script>
+    <script src="/panel.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">İhale listesine geç</a>
+    <aside class="sidebar" aria-label="Ana menü">
+      <div class="brand">
+        <span class="brand-title">İhale Bulucu</span
+        ><span class="brand-company">EFA MÜHENDİSLİK</span>
+      </div>
+      <nav aria-label="Bölümler">
+        <button
+          class="nav-item active"
+          data-view="opportunities"
+          aria-current="page"
+        >
+          <img class="icon" src="/assets/file-text.svg" alt="" />Fırsatlar
+        </button>
+        <button class="nav-item" data-view="research">
+          <img class="icon" src="/assets/file-search.svg" alt="" />Araştırmalar
+        </button>
+        <button class="nav-item" data-view="settings">
+          <img class="icon" src="/assets/settings.svg" alt="" />Kaynaklar ve
+          ayarlar
+        </button>
+      </nav>
+      <div class="sidebar-stats" aria-label="Kayıtlı veriler">
+        <p class="stats-caption">Kayıtlı veriler</p>
+        <dl>
+          <div>
+            <dt>Kayıtlı fırsat</dt>
+            <dd id="total">—</dd>
+          </div>
+          <div>
+            <dt>İklimlendirmeyle ilgili</dt>
+            <dd id="direct">—</dd>
+          </div>
+          <div>
+            <dt>Potansiyel proje</dt>
+            <dd id="potential">—</dd>
+          </div>
+        </dl>
+        <p class="stats-note">
+          Veriler arşiv kayıtları dahil toplam sayıyı gösterir.
+        </p>
+      </div>
+    </aside>
+    <main class="app-shell" id="workspace" tabindex="-1">
+      <header class="page-header">
+        <div class="page-heading">
+          <div class="heading-line">
+            <h1 id="page-title">Fırsatlar</h1>
+            <time id="today"></time>
+          </div>
+          <p id="page-description">
+            Klima, ısıtma-soğutma ve montaj için projeler, ihaleler ve
+            yükleniciler.
+          </p>
+        </div>
+        <div class="scan-control">
+          <button id="scan" class="button primary">
+            <img class="icon" src="/assets/search.svg" alt="" /><span
+              >Kaynakları tara</span
+            >
+          </button>
+          <p id="status">Veriler yükleniyor…</p>
+        </div>
+      </header>
+      <div
+        id="notice"
+        class="notice"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
+      <section
+        id="opportunities-view"
+        class="workspace-grid"
+        aria-label="İhale ve firma takibi"
+      >
+        <div class="opportunity-list">
+          <form id="filters" class="filter-toolbar" role="search">
+            <label class="search-field"
+              ><img class="icon" src="/assets/search.svg" alt="" /><input
+                id="search"
+                type="search"
+                placeholder="Proje, şehir veya firma ara…"
+                aria-label="Ara"
+                autocomplete="off"
+            /></label>
+            <label class="select-field"
+              ><span>Satış aşaması</span
+              ><select id="sales" aria-label="Satış aşaması">
+                <option value="actionable">Arşiv hariç</option>
+                <option value="">Tümü</option>
+                <option value="teklif">Teklif değerlendir</option>
+                <option value="yuklenici">Yükleniciye ulaş</option>
+                <option value="proje">Devam eden projeler</option>
+                <option value="takip">Sonucu takip et</option>
+                <option value="kontrol">Araştırma gerekli</option>
+                <option value="arsiv">Arşiv / iptal / bitmiş iş</option>
+              </select></label
+            >
+            <label class="select-field source-filter"
+              ><span>Kaynak</span
+              ><select id="source" aria-label="Kaynak">
+                <option value="">Tümü</option>
+              </select></label
+            >
+            <details class="extra-filters" id="extra-filters">
+              <summary class="button subtle">
+                <img
+                  class="icon"
+                  src="/assets/adjustments-horizontal.svg"
+                  alt=""
+                /><span>Diğer filtreler</span
+                ><span id="filter-count" class="filter-count" hidden></span>
+              </summary>
+              <div class="filter-popover">
+                <label
+                  >Uygunluk<select id="kind">
+                    <option value="">Tüm uygunluklar</option>
+                    <option value="dogrudan">İklimlendirmeyle ilgili</option>
+                    <option value="potansiyel">Potansiyel proje</option>
+                  </select></label
+                >
+                <label
+                  >Kaynak aşaması<select id="stage">
+                    <option value="">Tüm aşamalar</option>
+                    <option value="ilan">İlan</option>
+                    <option value="degerlendirme">Değerlendirme</option>
+                    <option value="duzeltme">Düzeltme</option>
+                    <option value="iptal">İptal</option>
+                    <option value="sonuc">Sonuç</option>
+                    <option value="proje">Yatırım projesi</option>
+                  </select></label
+                >
+                <label
+                  >Tarih durumu<select id="freshness">
+                    <option value="">Tüm ihale tarihleri</option>
+                    <option value="yaklasan">Yaklaşan ihale</option>
+                    <option value="tarih_belirsiz">Tarih bilinmiyor</option>
+                    <option value="tarih_gecmis">İhale tarihi geçmiş</option>
+                    <option value="kapali">Sonuç / kapalı / iptal</option>
+                  </select></label
+                >
+                <label
+                  >Araştırma durumu<select id="research">
+                    <option value="">Tüm durumlar</option>
+                    <option value="idle">Henüz araştırılmadı</option>
+                    <option value="queued">Araştırma sırada</option>
+                    <option value="running">Araştırılıyor</option>
+                    <option value="resolved">Bilgiler doğrulandı</option>
+                    <option value="partial">Kısmen tamamlandı</option>
+                    <option value="review_required">
+                      Elle kontrol gerekli
+                    </option>
+                    <option value="unresolved">Kazanan bulunamadı</option>
+                    <option value="failed">Tamamlanamadı</option>
+                    <option value="stale">Yeniden araştırılmalı</option>
+                  </select></label
+                >
+                <button type="button" class="text-button clear-filters">
+                  Filtreleri temizle
+                </button>
+              </div>
+            </details>
+          </form>
+          <div class="research-toolbar" id="research-toolbar" hidden>
+            <p id="research-status"></p>
+            <button class="button outline" id="enrich-all">
+              <img class="icon" src="/assets/file-search.svg" alt="" />Firmaları
+              araştır
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table aria-label="İhale fırsatları">
+              <thead>
+                <tr>
+                  <th scope="col">Proje / kurum</th>
+                  <th scope="col" id="stage-heading">Aşama</th>
+                  <th scope="col" class="date-column" id="date-heading">
+                    <button class="sort-button" data-sort="date">
+                      İhale tarihi<img
+                        class="icon small"
+                        src="/assets/chevrons-up.svg"
+                        alt=""
+                      />
+                    </button>
+                  </th>
+                  <th
+                    scope="col"
+                    class="priority-column"
+                    id="priority-heading"
+                    aria-sort="descending"
+                  >
+                    <button class="sort-button" data-sort="priority">
+                      Öncelik<img
+                        class="icon small sort-indicator"
+                        src="/assets/arrow-down.svg"
+                        alt=""
+                      />
+                    </button>
+                  </th>
+                  <th scope="col" class="row-tail">
+                    <span class="sr-only">Ayrıntı</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="list">
+                <tr>
+                  <td colspan="5" class="empty-state">İhaleler yükleniyor…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="list-footer">
+            <p id="shown" aria-live="polite"></p>
+            <button id="more" class="button outline" hidden>
+              Daha fazla göster
+            </button>
+          </div>
+          <div id="empty-actions" hidden>
+            <button class="text-button clear-filters">
+              Filtreleri temizle
+            </button>
+          </div>
+        </div>
+        <aside
+          id="detail"
+          class="inspector"
+          aria-label="Fırsat ayrıntıları"
+          tabindex="-1"
+        >
+          <div class="empty-inspector">
+            <img src="/assets/file-search.svg" alt="" class="icon large" />
+            <h2>Bir fırsat seçin</h2>
+            <p>
+              İhale bilgileri, sonraki adım ve firma araştırması burada görünür.
+            </p>
+          </div>
+        </aside>
+      </section>
+      <section
+        id="settings-view"
+        class="settings-view"
+        aria-labelledby="page-title"
+        hidden
+      >
+        <div class="settings-heading">
+          <h2>Takip ve kaynak durumu</h2>
+          <a
+            class="button outline"
+            href="/api/export"
+            download="ihalesystem.json"
+            ><img class="icon" src="/assets/download.svg" alt="" />JSON indir</a
+          >
+        </div>
+        <div id="operations"></div>
+        <div id="sources"></div>
+        <p id="footer" class="coverage-note"></p>
+      </section>
+      <noscript
+        >İhale listesini kullanmak için tarayıcınızda JavaScript'i
+        etkinleştirin.</noscript
+      >
+    </main>
+    <button
+      id="detail-backdrop"
+      class="detail-backdrop"
+      aria-label="Ayrıntıyı kapat"
+      tabindex="-1"
+      hidden
+    ></button>
+  </body>
+</html>

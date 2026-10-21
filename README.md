@@ -38,14 +38,20 @@ python app.py --demo
 
 Demo firmalar ve iletişimler sentetiktir; panelde ve JSON’da açıkça işaretlenir. Demo canlı tarama veya gerçek internet araştırması yapmaz.
 
+## Paneli kullanma
+
+**Fırsatlar** bölümünde proje, şehir veya firma arayın; satış aşaması ve kaynağa göre filtreleyin. Ek uygunluk, tarih ve araştırma filtreleri **Diğer filtreler** menüsündedir. Bir satıra tıkladığınızda ihale, sonraki adım, kaynaklar ve firma bilgileri sağ panelde açılır. Küçük ekranlarda ayrıntı kapatılabilir bir pencere olarak görünür. Tarih ve öncelik başlıkları sıralamayı değiştirir.
+
+**Araştırmalar**, araştırmaya uygun kayıtları ve firma araştırmalarının durumunu gösterir. **Kaynaklar ve ayarlar**, otomatik takip, yedekler, arama motorları ve tarama geçmişini bir araya getirir; birleşik JSON çıktısı buradan indirilebilir. Takip simgesi bu tarayıcıda saklanır. Yazı tipi ve simgeler yerel dosyalardır; arayüz dış bir CDN'ye bağımlı değildir.
+
 ## Birleşik çalışma akışı
 
 1. EFA motoru TOKİ, belediye/üniversite listeleri, EKAP resmî PDF bültenleri, Emlak Konut ve ÇED duyurularını tarar. İptal/düzeltme eşleştirmesi, tarih güncellemeleri ve proje güncelliği düzeltmeleri korunur.
 2. Tarama sonunda en fazla 10 uygun EKAP sonuç kaydı otomatik olarak yerel resmî PDF kanıtıyla işlenir. Bu PDF adımına ek olarak, uygulama açıkken saatte 5 güncel/aktif sonuç kaydı webde araştırılır; günlük üst sınır 20 kayıttır. Telefon veya e-postası eksik kayıtlar önceliklenir. Bugünün kayıtları da değerlendirilir; tarihi belirsiz ve arşiv kayıtları otomatik web araştırmasına girmez. Aynı firma bir parti içinde tekrarlanmaz. Günlük sayaç ve kuyruk yeniden başlatmalarda korunur.
 3. PDF’deki ihale numarası ve yüklenici alanı TenderEnricher’a kanıt olur. JSON’daki `contractors` veya `official` etiketi tek başına kazanan kanıtı sayılmaz; arşivdeki PDF tekrar doğrulanır.
-4. Karttaki **Firma araştır** / **Araştırmayı yenile** düğmesi ek şirket araştırmasını başlatır. İstenirse firma sitesi ve sonuç ilanı bağlantısı girilebilir. Üstteki **Firmaları araştır** düğmesi en fazla 10 sonuç kaydını işler.
-5. Kazanan, telefon/e-posta/adres, eksikler, skorlar, çelişkiler ve kaynaklar aynı kartın **Firma araştırması** bölümünde görünür. İdare telefonu yüklenicinin telefonu yapılmaz; ihale şehri şirketin ili sayılmaz.
-6. Kabul edilen kazanan satış kartındaki hedef yükleniciyi ve kurumsal iletişim arama bağlantısını günceller. İptal, kapanmış sözleşme veya eskimiş araştırma sonucu aktif satış adayı olarak yeniden açılmaz.
+4. Sağ paneldeki **Firmayı araştır** / **Araştırmayı yenile** düğmesi ek şirket araştırmasını başlatır. İstenirse firma sitesi ve sonuç ilanı bağlantısı girilebilir. **Araştırmalar** bölümündeki **Firmaları araştır** düğmesi en fazla 10 sonuç kaydını işler.
+5. Kazanan, telefon/e-posta/adres, eksikler, skorlar, çelişkiler ve kaynaklar seçilen kaydın **Firma araştırması** bölümünde görünür. İdare telefonu yüklenicinin telefonu yapılmaz; ihale şehri şirketin ili sayılmaz.
+6. Kabul edilen kazanan fırsatın hedef yüklenicisini ve kurumsal iletişim arama bağlantısını günceller. İptal, kapanmış sözleşme veya eskimiş araştırma sonucu aktif satış adayı olarak yeniden açılmaz.
 
 İnternette URL keşfi birden fazla sağlayıcıyla çalışır. `.env.example` → `.env` kopyalanarak istenen bağlantılar yapılandırılır:
 

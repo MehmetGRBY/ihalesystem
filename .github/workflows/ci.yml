@@ -23,6 +23,7 @@ jobs:
       - run: ruff format --check .
       - run: mypy
       - run: node --check discovery/panel.js
+      - run: node --check discovery/panel-data.js && node --test tests/panel.test.cjs
       - run: tender-enricher schema && git diff --exit-code -- schemas
   desktop:
     name: desktop (${{ matrix.os }})

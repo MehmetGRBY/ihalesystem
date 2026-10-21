@@ -389,6 +389,21 @@ class Handler(BaseHTTPRequestHandler):
             self.send((ROOT / "panel.html").read_bytes(), content_type="text/html; charset=utf-8")
         elif path.path == '/panel.js':
             self.send((ROOT / 'panel.js').read_bytes(), content_type='text/javascript; charset=utf-8')
+        elif path.path in ('/panel.css', '/panel-data.js'):
+            kind = 'text/css; charset=utf-8' if path.path.endswith('.css') else 'text/javascript; charset=utf-8'
+            self.send((ROOT / path.path[1:]).read_bytes(), content_type=kind)
+        elif path.path.startswith('/assets/'):
+            name = path.path.removeprefix('/assets/')
+            # Only the bundled UI assets are public, never arbitrary project files.
+            if not re.fullmatch(r'[A-Za-z0-9_-]+\.(svg|woff2)', name):
+                self.send({'error': 'Bulunamadı'}, 404)
+            else:
+                asset = ROOT / 'assets' / name
+                if asset.is_file() and not asset.is_symlink():
+                    kind = 'image/svg+xml' if asset.suffix == '.svg' else 'font/woff2'
+                    self.send(asset.read_bytes(), content_type=kind)
+                else:
+                    self.send({'error': 'Bulunamadı'}, 404)
         elif path.path == "/api/status":
             self.send(status())
         elif path.path.startswith('/api/bulletins/'):
